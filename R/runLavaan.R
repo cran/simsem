@@ -101,12 +101,13 @@ runLavaan <- function(object, Data, miss = "fiml", estimator = "ML") {
                 FitIndices["TLI"] <- TLI
             }
         }
-        try(coef <- combineObject(param, inspect(fit, "coef")))
-        try(se <- combineObject(param, inspect(fit, "se")))
-        try(Converged <- inspect(fit, "converged"))
-        try(check <- sum(unlist(lapply(inspect(fit, "se"), sum))))
+        try(coef <- combineObject(param, inspect(fit, "coef")), silent=TRUE)
+        try(se <- combineObject(param, inspect(fit, "se")), silent=TRUE)
+        try(Converged <- inspect(fit, "converged"), silent=TRUE)
+        try(check <- sum(unlist(lapply(inspect(fit, "se"), sum))), silent=TRUE)
         try(if (is.na(check) || check == 0) 
             Converged = FALSE, silent = TRUE)
     }
-    return(new("SimModelOut", param = object@param, start = object@start, equalCon = object@equalCon, package = object@package, coef = coef, fit = FitIndices, se = se, converged = Converged))
+    return(new("SimModelOut", param = object@param, start = object@start, equalCon = object@equalCon, package = object@package, coef = coef, 
+        fit = FitIndices, se = se, converged = Converged))
 } 

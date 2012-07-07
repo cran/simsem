@@ -1,5 +1,5 @@
-# simMatrix: Create SimMatrix.c object that save free parameters and starting values, as well as fixed values. This will be used for model specification later, such as for factor loading matrix
-# or regression coefficient free.
+# simMatrix: Create SimMatrix.c object that save free parameters and starting values, as well as fixed values. This will be used for
+# model specification later, such as for factor loading matrix or regression coefficient free.
 
 simMatrix <- function(free = NULL, value = NULL) {
     if (is.null(value)) {

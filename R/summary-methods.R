@@ -210,6 +210,8 @@ setMethod("summary", signature = "SimMisspec", definition = function(object) {
     }
     cat("Constain objects BEFORE or AFTER adding misspecification\n")
     ifelse(object@conBeforeMis, print("Before"), print("After"))
+    cat("Impose misspecification BEFORE or AFTER filling the unspecified parameters\n")
+    ifelse(object@misBeforeFill, print("Before"), print("After"))
     cat("Misfit bound\n")
     if (!isNullObject(object@misfitBound)) {
         print(paste("min =", object@misfitBound[1]))
@@ -217,6 +219,20 @@ setMethod("summary", signature = "SimMisspec", definition = function(object) {
     } else {
         print("No")
     }
+	cat("Optimization method\n")
+	print(object@optMisfit)
+	if (!isNullObject(object@misfitBound) | (object@optMisfit != "none")) {
+		cat("Population misfit type used\n")
+		print(object@misfitType)
+		cat("Average the amount of misfit by the number of misspecified parameters\n")
+		ifelse(object@averageNumMisspec, print("Before"), print("After"))
+		cat("Maximum number of drawns\n")
+		print(object@numIter)	
+	}
+	if (object@optMisfit != "none") {
+		cat("The number of drawns used in the optimization method\n")
+		print(object@numIter)	
+	}
 })
 
 setMethod("summary", signature = "SimEqualCon", definition = function(object) {
@@ -407,18 +423,10 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
     cat("RESULT OBJECT\n")
     cat("Model Type\n")
     print(object@modelType)
-    cat("========= Fit Indices Cutoffs ============\n")
-    if (is.null(alpha)) 
-        alpha <- c(0.1, 0.05, 0.01, 0.001)
     cleanObj <- clean(object)
-    cutoffs <- round(sapply(alpha, getCutoff, object = cleanObj, usedFit = usedFit), digits)
-    if (ncol(as.matrix(cutoffs)) == 1) {
-        cutoffs <- t(cutoffs)
-        rownames(cutoffs) <- usedFit
-    }
-    colnames(cutoffs) <- alpha
-    names(dimnames(cutoffs)) <- c("Fit Indices", "Alpha")
-    print(cutoffs)
+    
+    cat("========= Fit Indices Cutoffs ============\n")
+	print(summaryFit(object), digits=digits)
     cat("========= Parameter Estimates and Standard Errors ============\n")
     print(round(summaryParam(object), digits))
     cat("========= Correlation between Fit Indices ============\n")
@@ -442,7 +450,8 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
     if (length(unique(object@pmMAR)) > 1) 
         cat("NOTE: The percent of MAR is varying.\n")
     if (!isNullObject(object@paramValue)) {
-        if ((ncol(object@coef) != ncol(object@paramValue)) | ((ncol(object@coef) == ncol(object@paramValue)) && any(colnames(object@coef) != colnames(object@paramValue)))) 
+        if ((ncol(object@coef) != ncol(object@paramValue)) | ((ncol(object@coef) == ncol(object@paramValue)) && any(colnames(object@coef) != 
+            colnames(object@paramValue)))) 
             cat("NOTE: The data generation model is not the same as the analysis model. See the summary of the population underlying data generation by the summaryPopulation function.\n")
     }
 })
@@ -563,19 +572,22 @@ setMethod("summary", signature(object = "SimResultParam"), definition = function
     cat("========= Parameter Values ============\n")
     print(round(summaryParam(object), digits))
     cat("========= Misspecification Values ============\n")
-    misspecAverage <- colMeans(object@misspec, na.rm = TRUE)
-    misspecSE <- sapply(object@misspec, sd, na.rm = TRUE)
-    mis <- data.frame(mean = misspecAverage, sd = misspecSE)
-    print(round(mis, digits))
+	if(!isNullObject(object@misspec)) {
+		mis <- summaryMisspec(object)
+		print(round(mis, digits))
+	} else {
+		print("No Misspecification")
+	}
     cat("========= Fit Indices Distributions ============\n")
-    quantileValue <- c(0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95)
-    cutoffs <- round(apply(object@fit, 2, quantile, quantileValue), digits)
-    names(dimnames(cutoffs)) <- c("Fit Indices", "Quantile")
-    fitAverage <- colMeans(object@fit, na.rm = TRUE)
-    fitSE <- sapply(object@fit, sd, na.rm = TRUE)
-    cutoffs <- rbind(cutoffs, fitAverage, fitSE)
-    print(round(cutoffs, digits))
-    cat("========= Correlation between Fit Indices and Parameter Misspecification ============\n")
-    fit <- data.frame(object@misspec, object@fit[, usedFit])
-    print(round(cor(fit), digits))
+	if(!isNullObject(object@fit)) {
+		fit <- summaryFit(object)
+		print(round(fit, digits))
+	} else {
+		print("No Fit Indices Quantifying the Amount of Misspecification")
+	}
+	if(!isNullObject(object@misspec) & !isNullObject(object@fit) && (nrow(unique(object@fit)) > 1)) {
+		cat("========= Correlation between Fit Indices and Parameter Misspecification ============\n")
+		fit <- data.frame(object@misspec, object@fit[, usedFit])
+		print(round(cor(fit), digits))
+	}
 }) 

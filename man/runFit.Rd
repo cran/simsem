@@ -5,24 +5,24 @@
 \alias{runFit,SimModel-method}
 \alias{runFit,SimModelOut-method}
 \title{
-	Build a result object from analyzing real data
+	Build a Monte Carlo simulation that the data-generation parameters are from the result of analyzing real data
 }
 \description{
 This function will analyze real data and use the result of the analysis to simulate data. Those simulated data will be analyzed by the same model. The result of the analyses will be saved in the result object, \code{\linkS4class{SimResult}}. 
 }
 \usage{
-runFit(model, realdata, nRep=1000, misspec=new("NullSimMisspec"), 
+runFit(model, data, nRep=1000, misspec=new("NullSimMisspec"), 
 	maxDraw=100, sequential=NA, facDist=new("NullSimDataDist"), 
 	errorDist=new("NullSimDataDist"), indDist=new("NullSimDataDist"), 
 	modelBoot=FALSE, seed=123321, silent=FALSE, multicore=FALSE, 
 	cluster=FALSE, numProc=NULL, empiricalMissing=TRUE, 
-	missModel=new("NullSimMissing"), usedStd=TRUE)
+	missModel=new("NullSimMissing"), usedStd=TRUE, analyzeModel=NULL)
 }
 \arguments{
   \item{model}{
-	Model object used in analyzing the real and simulated data.
+	Model object used in analyzing the real data and simulated data (if the \code{analyzeModel} below is not specified).
 }
-  \item{realdata}{
+  \item{data}{
 	Real data that will be used in the analysis
 }
   \item{nRep}{
@@ -73,6 +73,9 @@ runFit(model, realdata, nRep=1000, misspec=new("NullSimMisspec"),
   \item{usedStd}{
 	The standardized parameters are used for data generation if \code{usedStd=TRUE}. If \code{usedStd=FALSE}, unstandardized parameters are used.
 }
+  \item{analyzeModel}{
+	The \code{\linkS4class{SimModel}} that will be used to analyze the simulated data. If \code{NULL}, the model object from the \code{model} argument is used.
+}
 }
 \details{
 	This function can be used to implement the Monte Carlo approach for evaluating model fit proposed by Millsap (in press). This function will use the obtained parameter estimates as the real population parameters in a simulation study, put a trivial model misspecification in the real parameters, generate multiple simulated data, analyze those simulated data, and put it in the result object, \code{\linkS4class{SimResult}}. The fit indices distribution in the result object can be used for the model fit evaluation. The useful functions for model fit evaluation are \code{\link{plotCutoff}}, \code{\link{getCutoff}}, and \code{\link{pValue}}. If \code{modelBoot} is \code{TRUE}, the function will use the Bollen-Stine bootstrap method for data generation. See \code{\link{simData}} for further details of the Bollen-Stine bootstrap approach.
@@ -95,6 +98,7 @@ runFit(model, realdata, nRep=1000, misspec=new("NullSimMisspec"),
 	}
 }
 \examples{
+\dontrun{
 library(lavaan)
 loading <- matrix(0, 9, 3)
 loading[1:3, 1] <- NA
@@ -139,4 +143,5 @@ model <- simModel(param, indLab=c(paste("x", 1:3, sep=""), paste("y", 1:8, sep="
 out <- run(model, usedData, miss)
 output <- runFit(model, usedData, 5, missModel=miss)
 pValue(out, output)
+}
 }

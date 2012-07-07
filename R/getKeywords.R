@@ -49,9 +49,10 @@ getKeywords <- function() {
     optMax <- c("max", "maximum", "upper")
     optNone <- c("none", "null")
     
-    result <- list(LY = LY, TE = TE, RTE = RTE, PS = PS, RPS = RPS, BE = BE, VY = VY, VPS = VPS, VE = VE, TY = TY, ME = ME, VTE = VTE, AL = AL, MY = MY, LX = LX, TD = TD, RTD = RTD, PH = PH, RPH = RPH, 
-        GA = GA, VX = VX, VPH = VPH, TX = TX, KA = KA, VTD = VTD, MX = MX, TH = TH, RTH = RTH, loading = loading, errorCov = errorCov, errorCor = errorCor, errorVar = errorVar, indicatorVar = indicatorVar, 
-        indicatorMean = indicatorMean, facCov = facCov, facCor = facCor, intercept = intercept, facMean = facMean, facVar = facVar, usedFit = usedFit, usedFitPop = usedFitPop, optMin = optMin, optMax = optMax, 
-        optNone = optNone)
+    result <- list(LY = LY, TE = TE, RTE = RTE, PS = PS, RPS = RPS, BE = BE, VY = VY, VPS = VPS, VE = VE, TY = TY, ME = ME, VTE = VTE, 
+        AL = AL, MY = MY, LX = LX, TD = TD, RTD = RTD, PH = PH, RPH = RPH, GA = GA, VX = VX, VPH = VPH, TX = TX, KA = KA, VTD = VTD, MX = MX, 
+        TH = TH, RTH = RTH, loading = loading, errorCov = errorCov, errorCor = errorCor, errorVar = errorVar, indicatorVar = indicatorVar, 
+        indicatorMean = indicatorMean, facCov = facCov, facCor = facCor, intercept = intercept, facMean = facMean, facVar = facVar, usedFit = usedFit, 
+        usedFitPop = usedFitPop, optMin = optMin, optMax = optMax, optNone = optNone)
     return(result)
 } 
