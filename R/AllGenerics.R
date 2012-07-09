@@ -54,7 +54,7 @@ setGeneric("tagHeaders", function(object, ...) {
     return(standardGeneric("tagHeaders"))
 })
 
-setGeneric("getCutoff", function(object, alpha, revDirec = FALSE, usedFit = NULL) {
+setGeneric("getCutoff", function(object, alpha, revDirec = FALSE, usedFit = NULL, ...) {
     return(standardGeneric("getCutoff"))
 })
 
@@ -62,12 +62,8 @@ setGeneric("plotCutoff", function(object, ...) {
     return(standardGeneric("plotCutoff"))
 })
 
-setGeneric("plotPower", function(altObject, nullObject, ...) {
-    return(standardGeneric("plotPower"))
-})
-
-setGeneric("getPower", function(altObject, cutoff, revDirec = FALSE, usedFit = NULL) {
-    return(standardGeneric("getPower"))
+setGeneric("getPowerFit", function(altObject, cutoff, revDirec = FALSE, usedFit = NULL, ...) {
+    return(standardGeneric("getPowerFit"))
 })
 
 setGeneric("vectorizeObject", function(object, labels, ...) {
@@ -76,6 +72,14 @@ setGeneric("vectorizeObject", function(object, labels, ...) {
 
 setGeneric("summaryParam", function(object, ...) {
     return(standardGeneric("summaryParam"))
+})
+
+setGeneric("summaryFit", function(object, ...) {
+    return(standardGeneric("summaryFit"))
+})
+
+setGeneric("summaryMisspec", function(object, ...) {
+    return(standardGeneric("summaryMisspec"))
 })
 
 setGeneric("subtractObject", function(object1, object2, ...) {
@@ -106,9 +110,9 @@ setGeneric("simData", function(param, ...) {
     return(standardGeneric("simData"))
 })
 
-setGeneric("runFit", function(model, realdata, nRep = 1000, misspec = new("NullSimMisspec"), maxDraw = 100, sequential = NA, facDist = new("NullSimDataDist"), errorDist = new("NullSimDataDist"), 
-    indDist = new("NullSimDataDist"), modelBoot = FALSE, seed = 123321, silent = FALSE, multicore = FALSE, cluster = FALSE, numProc = NULL, empiricalMissing = TRUE, missModel = new("NullSimMissing"), 
-    usedStd = TRUE) {
+setGeneric("runFit", function(model, data, nRep = 1000, misspec = new("NullSimMisspec"), maxDraw = 100, sequential = NA, 
+    facDist = new("NullSimDataDist"), errorDist = new("NullSimDataDist"), indDist = new("NullSimDataDist"), modelBoot = FALSE, seed = 123321, 
+    silent = FALSE, multicore = FALSE, cluster = FALSE, numProc = NULL, empiricalMissing = TRUE, missModel = new("NullSimMissing"), usedStd = TRUE, analyzeModel=NULL) {
     return(standardGeneric("runFit"))
 })
 
@@ -142,4 +146,16 @@ setGeneric("isRandom", function(object) {
 
 setGeneric("toFunction", function(x) {
     return(standardGeneric("toFunction"))
-}) 
+})
+ 
+setGeneric("getPowerFitNested", function(altNested, altParent, cutoff, ...) {
+    return(standardGeneric("getPowerFitNested"))
+})
+
+setGeneric("runFitParam", function(model, nRep = 1000, misspec = new("NullSimMisspec"), maxDraw = 100, seed = 123321, usedStd = TRUE, ...) {
+    return(standardGeneric("runFitParam"))
+})
+
+setGeneric("getPowerFitNonNested", function(dat2Mod1, dat2Mod2, cutoff, ...) {
+    return(standardGeneric("getPowerFitNonNested"))
+})
