@@ -1,5 +1,6 @@
 \name{imposeMissing}
 \alias{imposeMissing}
+\alias{impose}
 \title{ 
 Impose MAR, MCAR, planned missingness, or attrition on a data set
 }
@@ -8,11 +9,15 @@ Function imposes missing values on a data based on the known missing data types,
 including MCAR, MAR, planned, and attrition.
 }
 \usage{
-imposeMissing(data.mat, cov = 0, pmMCAR = 0, pmMAR = 0, nforms = 0,
-	itemGroups = 0, twoMethod = 0,  prAttr = 0, timePoints = 1, 
-	ignoreCols = 0, threshold = 0, logical = new("NullMatrix"))
+impose(miss, data.mat, pmMCAR = NULL, pmMAR = NULL)
+imposeMissing(data.mat, cov = 0, pmMCAR = 0, pmMAR = 0, nforms = 0, 
+	itemGroups = list(), twoMethod = 0, prAttr = 0, timePoints = 1, 
+	ignoreCols = 0, threshold = 0, logical = NULL)
 }
 \arguments{
+  \item{miss}{
+    Missing data object (\code{\linkS4class{SimMissing}}) used as the template for impose missing values
+}
   \item{data.mat}{
     Data to impose missing upon. Can be either a matrix or a data frame. 
 }
@@ -36,9 +41,9 @@ imposeMissing(data.mat, cov = 0, pmMCAR = 0, pmMAR = 0, nforms = 0,
     forms. Unless specified, items will be divided into groups sequentially (e.g. 1-3,4-6,7-9,10-12)
 }
   \item{twoMethod}{
-    Vector of (column index, percent missing). Will put a given percent
+    With missing on one variable: vector of (column index, percent missing). Will put a given percent
     missing on that column in the matrix to simulate a two method
-    planned missing data research design. 
+    planned missing data research design. With missing on two or more variables: list of (column indices, percent missing).
   }
   \item{prAttr}{
     Probability (or vector of probabilities) of an entire case being removed due to attrition at a
@@ -114,8 +119,8 @@ Alexander M. Schoemann (University of Kansas; \email{schoemann@ku.edu})
 }
 \seealso{
 	\itemize{
-		\item \code{\linkS4class{SimMissing}} for the alternative way to save missing data feature for using in the \code{\link{simResult}} function.
-		\item \code{\link{runMI}} for imputing missing data by multiple imputation and analyze the imputed data.
+		\item \code{\linkS4class{SimMissing}} for the alternative way to save missing data feature for using in the \code{\link{sim}} function.
+		%\item \code{\link{runMI}} for imputing missing data by multiple imputation and analyze the imputed data.
 	}
 }
 \examples{
@@ -130,13 +135,23 @@ Alexander M. Schoemann (University of Kansas; \email{schoemann@ku.edu})
   imposeMissing(data,nforms=0)
 
   #Some more usage examples
+  
+  # No missing at variables 1 and 2
   imposeMissing(data,cov=c(1,2),pmMCAR=.1)
   
- 
+  # 3-Form design
   imposeMissing(data,nforms=3)
+  
+  # 3-Form design with specified groups of items (XABC)
   imposeMissing(data,nforms=3,itemGroups=list(c(1,2,3,4,5),c(6,7,8,9,10),c(11,12,13,14,15),c(16,17,18,19)))
+  
+  # 3-Form design when variables 20 and 21 are not missing
   imposeMissing(datac,cov=c(20,21),nforms=3)
+  
+  # 2 method design where the expensive measure is on Variable 19
   imposeMissing(data,twoMethod=c(19,.8))
+  
+  # Impose missing data with percent attrition of 0.1 in 5 time points
   imposeMissing(datac,cov=21,prAttr=.1,timePoints=5)
 
 }

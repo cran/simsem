@@ -12,10 +12,10 @@ nVal = NULL, pmMCARval = NULL, pmMARval = NULL, df = 0)
 }
 \arguments{
   \item{outNested}{
-	\code{\linkS4class{SimModelOut}} that saves the analysis result of the nested model from the target dataset
+	\code{\linkS4class{lavaan}} that saves the analysis result of the nested model from the target dataset
 }
   \item{outParent}{
-	\code{\linkS4class{SimModelOut}} that saves the analysis result of the parent model from the target dataset
+	\code{\linkS4class{lavaan}} that saves the analysis result of the parent model from the target dataset
 }
   \item{simNested}{
 	\code{\linkS4class{SimResult}} that saves the analysis results of nested model from multiple replications
@@ -50,41 +50,47 @@ nVal = NULL, pmMCARval = NULL, pmMARval = NULL, df = 0)
 }
 \seealso{
 	\itemize{
-		\item \code{\linkS4class{SimModelOut}} to see how to get the analysis result of observed data
+		%\item \code{\linkS4class{SimModelOut}} to see how to get the analysis result of observed data
 		\item \code{\linkS4class{SimResult}} to run a simulation study
-		\item \code{\link{runFit}} to run a simulation study based on the parameter estimates from the analysis result of observed data
+		%\item \code{\link{runFit}} to run a simulation study based on the parameter estimates from the analysis result of observed data
 	}
 }
 \examples{
 \dontrun{
 library(lavaan)
 
+# Nested Model: Linear growth curve model
 LY <- matrix(1, 4, 2)
 LY[,2] <- 0:3
 PS <- matrix(NA, 2, 2)
 TY <- rep(0, 4)
 AL <- rep(NA, 2)
 TE <- diag(NA, 4)
-linearModel <- simParamCFA(LY=LY, PS=PS, TY=TY, AL=AL, TE=TE)
+nested <- estmodel(LY=LY, PS=PS, TY=TY, AL=AL, TE=TE, modelType="CFA", indLab=paste("t", 1:4, sep=""))
 
+# Parent Model: Unconditional growth curve model
 LY2 <- matrix(1, 4, 2)
 LY2[,2] <- c(0, NA, NA, 3)
-unconstrainModel <- simParamCFA(LY=LY2, PS=PS, TY=TY, AL=AL, TE=TE)
+parent <- estmodel(LY=LY2, PS=PS, TY=TY, AL=AL, TE=TE, modelType="CFA", indLab=paste("t", 1:4, sep=""))
 
-nested <- simModel(linearModel, indLab=paste("t", 1:4, sep=""))
-parent <- simModel(unconstrainModel, indLab=paste("t", 1:4, sep=""))
+# Analyze the output
+outNested <- analyze(nested, Demo.growth)
+outParent <- analyze(parent, Demo.growth)
 
-outNested <- run(nested, Demo.growth)
-outParent <- run(parent, Demo.growth)
-
+# Create data template from the nested model with small misfit on the linear curve
 loadingMis <- matrix(0, 4, 2)
-loadingMis[2:3, 2] <- NA
-LYmis <- simMatrix(loadingMis, "runif(1, -0.1, 0.1)")
-linearMis <- simMisspecCFA(LY=LYmis)
+loadingMis[2:3, 2] <- "runif(1, -0.1, 0.1)"
+datamodel <- model.lavaan(outNested, LY=loadingMis)
 
-simNestedNested <- runFit(model=nested, data=Demo.growth, nRep=10, misspec=linearMis)
-simNestedParent <- runFit(model=nested, data=Demo.growth, nRep=10, misspec=linearMis, analyzeModel=parent)
+# Get the sample size
+n <- nrow(Demo.growth)
 
+# The actual replications should be much greater than 30.
+simNestedNested <- sim(30, n=n, nested, generate=datamodel) 
+simNestedParent <- sim(30, n=n, parent, generate=datamodel)
+
+# Find the p-value comparing the observed fit indices against the simulated 
+# sampling distribution of fit indices
 pValueNested(outNested, outParent, simNestedNested, simNestedParent)
 }
 }

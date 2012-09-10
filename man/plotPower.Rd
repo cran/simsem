@@ -53,20 +53,22 @@ plotPower(object, powerParam, alpha = 0.05, contParam = NULL, contN = TRUE,
 }
 \examples{
 \dontrun{
-# Specify Sample Size by n
 loading <- matrix(0, 6, 1)
 loading[1:6, 1] <- NA
-LX <- simMatrix(loading, 0.4)
-RPH <- symMatrix(diag(1))
-RTD <- symMatrix(diag(6))
-CFA.Model <- simSetCFA(LY = LX, RPS = RPH, RTE = RTD)
-SimData <- simData(CFA.Model, 500)
-SimModel <- simModel(CFA.Model)
-# We will use only 5 replications to save time.
-# In reality, more replications are needed.
+LY <- bind(loading, 0.4)
+RPS <- binds(diag(1))
+RTE <- binds(diag(6))
+CFA.Model <- model(LY = LY, RPS = RPS, RTE = RTE, modelType="CFA")
 
-# Specify both sample size and percent missing completely at random
-Output <- simResult(NULL, SimData, SimModel, n=seq(100, 200, 20), pmMCAR=c(0, 0.1, 0.2))
-plotPower(Output, "LY1_1", contMCAR=FALSE)
+# Specify both continuous sample size and percent missing completely at random. Note that more fine-grained 
+# values of n and pmMCAR is needed, e.g., n=seq(50, 500, 1) and pmMCAR=seq(0, 0.2, 0.01)
+
+Output <- sim(NULL, n=seq(100, 200, 20), pmMCAR=c(0, 0.1, 0.2), model=CFA.Model)
+
+# Plot the power of the first factor loading along the sample size value
+plotPower(Output, "1.f1=~y1", contMCAR=FALSE)
+
+# Plot the power of the correlation along the sample size and percent missing completely at random
+plotPower(Output, "1.f1=~y1")
 }
 }
