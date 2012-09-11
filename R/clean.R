@@ -1,28 +1,77 @@
 # clean: Extract only simultaneous converged replications in the result objects
 
+# \title{
+	# Extract only converged replications in the result objects
+# }
+# \description{
+	# Extract only the replications that are converegent in all supplied result objects (\code{\linkS4class{SimResult}})
+# }
+# \usage{
+# clean(...)
+# }
+# \arguments{
+  # \item{\dots}{
+	# The target result objects (\code{\linkS4class{SimResult}})
+# }
+# }
+# \value{
+	# The cleaned result objects
+# }
+
 clean <- function(...) {
-	object.l <- list(...)
-	converged <- sapply(object.l, slot, name="converged")
-	allConverged <- apply(converged, 1, all)
-	if(all(!allConverged)) stop("All replications in the result object are not convergent. Thus, the result object cannot be used.")
-	object.l <- lapply(object.l, cleanSimResult, converged=allConverged)
-	if(length(object.l) == 1) object.l <- object.l[[1]]
-	return(object.l)
-} 
+    object.l <- list(...)
+    converged <- sapply(object.l, slot, name = "converged")
+    allConverged <- apply(converged, 1, all)
+    if (all(!allConverged)) 
+        stop("All replications in the result object are not convergent. Thus, the result object cannot be used.")
+    object.l <- lapply(object.l, cleanSimResult, converged = allConverged)
+    if (length(object.l) == 1) 
+        object.l <- object.l[[1]]
+    return(object.l)
+}
 
 # cleanSimResult: Extract only converged replications in a result object
-cleanSimResult <- function(object, converged=NULL) {
-    if(is.null(converged)) converged <- object@converged
+
+# \title{
+	# Extract only converged replications in the result object
+# }
+# \description{
+	# Extract only the replications that are converegent in a result object (\code{\linkS4class{SimResult}})
+# }
+# \usage{
+# cleanSimResult(object, converged=NULL)
+# }
+# \arguments{
+  # \item{object}{
+	# The target result object (\code{\linkS4class{SimResult}})
+# }
+  # \item{converged}{
+	# The replications to be extracted. If \code{NULL}, the converged slot in the result object will be used
+# }
+# }
+# \value{
+	# The cleaned result object
+# }
+
+cleanSimResult <- function(object, converged = NULL) {
+    if (is.null(converged)) 
+        converged <- object@converged
     object@nRep <- sum(converged)
     object@coef <- object@coef[converged, ]
     object@se <- object@se[converged, ]
     object@fit <- object@fit[converged, ]
     object@converged <- rep(TRUE, object@nRep)
-    if (!isNullObject(object@paramValue) && (nrow(object@paramValue) > 1)) 
+    if (!is.null(object@paramValue) && (nrow(object@paramValue) > 1)) 
         object@paramValue <- object@paramValue[converged, ]
-    if (!isNullObject(object@FMI1)) 
+    if (!is.null(object@misspecValue) && (nrow(object@misspecValue) > 1)) 
+        object@misspecValue <- object@misspecValue[converged, ]
+    if (!is.null(object@popFit) && (nrow(object@popFit) > 1)) 
+        object@popFit <- object@popFit[converged, ]
+    if (!is.null(object@extraOut) && (length(object@extraOut) > 1)) 
+        object@extraOut <- object@extraOut[converged]
+    if (!is.null(object@FMI1)) 
         object@FMI1 <- object@FMI1[converged, ]
-    if (!isNullObject(object@FMI2)) 
+    if (!is.null(object@FMI2)) 
         object@FMI2 <- object@FMI2[converged, ]
     object@stdCoef <- object@stdCoef[converged, ]
     object@seed <- object@seed
@@ -32,6 +81,6 @@ cleanSimResult <- function(object, converged=NULL) {
         object@pmMCAR <- object@pmMCAR[converged]
     if (length(object@pmMAR) > 1) 
         object@pmMAR <- object@pmMAR[converged]
-	object@converged <- converged
+    object@converged <- rep(TRUE, sum(converged))
     return(object)
 } 

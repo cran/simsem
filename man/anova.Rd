@@ -1,19 +1,11 @@
 \name{anova}
-%\alias{anova}
-%\alias{anova-methods}
-%\alias{anova,ANY-method}
 \alias{anova,SimResult-method}
-\alias{anova,SimModelOut-method}
-\alias{anova,SimModelMIOut-method}
 \title{
 	Provide a comparison of nested models and nonnested models across replications
 }
 \description{
 	This function will provide averages of model fit statistics and indices for nested models. It will also provide average differences of fit indices and power for likelihood ratio tests of nested models.
 }
-%\usage{
-%anova(object, ...)
-%}
 \arguments{
   \item{object}{
 	\code{\linkS4class{SimResult}} object being described. Currently at least two objects must be included as arguments
@@ -24,11 +16,6 @@
 }
 \value{
 	A data frame that provides the statistics described above from all parameters.
-	For using with \code{\linkS4class{SimModelOut}}, each column means
-	\itemize{
-		\item \code{summary:} The fit indices of each output
-		\item \code{diff:} The differences in fit indices among outputs 
-	}	
 	For using with \code{linkS4class{SimResult}}, the result is a list with two or three elements:
 	\itemize{
 		\item \code{summary:} Average of fit indices across all replications
@@ -45,27 +32,28 @@
 	\code{\linkS4class{SimResult}} for the object input
 }
 \examples{
+\dontrun{
 loading1 <- matrix(0, 6, 1)
 loading1[1:6, 1] <- NA
 loading2 <- loading1
 loading2[6,1] <- 0
-LX1 <- simMatrix(loading1, 0.7)
-LX2 <- simMatrix(loading2, 0.7)
-RPH <- symMatrix(diag(1))
-RTD <- symMatrix(diag(6))
-CFA.Model1 <- simSetCFA(LY = LX1, RPS = RPH, RTE = RTD)
-CFA.Model2 <- simSetCFA(LY = LX2, RPS = RPH, RTE = RTD)
-SimData <- simData(CFA.Model1, 500)
-SimModel1 <- simModel(CFA.Model1)
-SimModel2 <- simModel(CFA.Model2)
+LY1 <- bind(loading1, 0.7)
+LY2 <- bind(loading2, 0.7)
+RPS <- binds(diag(1))
+RTE <- binds(diag(6))
+CFA.Model1 <- model(LY = LY1, RPS = RPS, RTE = RTE, modelType="CFA")
+CFA.Model2 <- model(LY = LY2, RPS = RPS, RTE = RTE, modelType="CFA")
+
 # We make the examples running only 5 replications to save time.
 # In reality, more replications are needed.
 # Need to make sure that both simResult calls have the same seed!
-Output1 <- simResult(5, SimData, SimModel1, seed=123567)
-Output2 <- simResult(5, SimData, SimModel2, seed=123567)
+Output1 <- sim(5, n=500, model=CFA.Model1, generate=CFA.Model1, seed=123567)
+Output2 <- sim(5, n=500, model=CFA.Model2, generate=CFA.Model1, seed=123567)
 anova(Output1, Output2)
 
-Output1b <- simResult(NULL, SimData, SimModel1, seed=123567, n=seq(50, 500, 50))
-Output2b <- simResult(NULL, SimData, SimModel2, seed=123567, n=seq(50, 500, 50))
+# The example when the sample size is varying
+Output1b <- sim(NULL, n=seq(50, 500, 50), model=CFA.Model1, generate=CFA.Model1, seed=123567)
+Output2b <- sim(NULL, n=seq(50, 500, 50), model=CFA.Model2, generate=CFA.Model1, seed=123567)
 anova(Output1b, Output2b)
+}
 }

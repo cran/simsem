@@ -13,10 +13,10 @@ onetailed=FALSE)
 }
 \arguments{
   \item{outMod1}{
-	\code{\linkS4class{SimModelOut}} that saves the analysis result of the first model from the target dataset
+	\code{\linkS4class{lavaan}} that saves the analysis result of the first model from the target dataset
 }
   \item{outMod2}{
-	\code{\linkS4class{SimModelOut}} that saves the analysis result of the second model from the target dataset
+	\code{\linkS4class{lavaan}} that saves the analysis result of the second model from the target dataset
 }
   \item{dat1Mod1}{
 	\code{\linkS4class{SimResult}} that saves the simulation of analyzing Model 1 by datasets created from Model 1
@@ -60,46 +60,56 @@ onetailed=FALSE)
 }
 \seealso{
 	\itemize{
-		\item \code{\linkS4class{SimModelOut}} to see how to get the analysis result of observed data
+		%\item \code{\linkS4class{SimModelOut}} to see how to get the analysis result of observed data
 		\item \code{\linkS4class{SimResult}} to run a simulation study
-		\item \code{\link{runFit}} to run a simulation study based on the parameter estimates from the analysis result of observed data
+		%\item \code{\link{runFit}} to run a simulation study based on the parameter estimates from the analysis result of observed data
 	}
 }
 \examples{
 \dontrun{
+# Model A; Factor 1 --> Factor 2; Factor 2 --> Factor 3
 library(lavaan)
 loading <- matrix(0, 11, 3)
 loading[1:3, 1] <- NA
 loading[4:7, 2] <- NA
 loading[8:11, 3] <- NA
 path.A <- matrix(0, 3, 3)
-path.A[2:3, 1] <- NA
+path.A[2, 1] <- NA
 path.A[3, 2] <- NA
-param.A <- simParamSEM(LY=loading, BE=path.A)
+model.A <- estmodel(LY=loading, BE=path.A, modelType="SEM", indLab=c(paste("x", 1:3, sep=""), paste("y", 1:8, sep="")))
 
-model.A <- simModel(param.A, indLab=c(paste("x", 1:3, sep=""), paste("y", 1:8, sep="")))
-out.A <- run(model.A, PoliticalDemocracy)
+out.A <- analyze(model.A, PoliticalDemocracy)
 
+# Model A; Factor 1 --> Factor 3; Factor 3 --> Factor 2
 path.B <- matrix(0, 3, 3)
-path.B[1:2, 3] <- NA
-path.B[1, 2] <- NA
-param.B <- simParamSEM(LY=loading, BE=path.B)
+path.B[3, 1] <- NA
+path.B[2, 3] <- NA
+model.B <- estmodel(LY=loading, BE=path.B, modelType="SEM", indLab=c(paste("x", 1:3, sep=""), paste("y", 1:8, sep="")))
 
-model.B <- simModel(param.B, indLab=c(paste("x", 1:3, sep=""), paste("y", 1:8, sep="")))
-out.B <- run(model.B, PoliticalDemocracy)
+out.B <- analyze(model.B, PoliticalDemocracy)
 
-u2 <- simUnif(-0.2, 0.2)
-loading.mis <- matrix(NA, 11, 3)
+loading.mis <- matrix("runif(1, -0.2, 0.2)", 11, 3)
 loading.mis[is.na(loading)] <- 0
-LY.mis <- simMatrix(loading.mis, "u2")
-misspec <- simMisspecSEM(LY=LY.mis)
 
-output.A.A <- runFit(model.A, PoliticalDemocracy, 5, misspec=misspec)
-output.A.B <- runFit(model.A, PoliticalDemocracy, 5, misspec=misspec, analyzeModel=model.B)
-output.B.A <- runFit(model.B, PoliticalDemocracy, 5, misspec=misspec, analyzeModel=model.A)
-output.B.B <- runFit(model.B, PoliticalDemocracy, 5, misspec=misspec)
+# Create SimSem object for data generation and data analysis template
+datamodel.A <- model.lavaan(out.A, std=TRUE, LY=loading.mis)
+datamodel.B <- model.lavaan(out.B, std=TRUE, LY=loading.mis)
 
-# The output may contain some warnings here. When the number of replications increases (e.g., 1000), the warnings should disappear.
+# Get sample size
+n <- nrow(PoliticalDemocracy)
+
+# The actual number of replications should be greater than 20.
+output.A.A <- sim(20, n=n, model.A, generate=datamodel.A) 
+output.A.B <- sim(20, n=n, model.B, generate=datamodel.A)
+output.B.A <- sim(20, n=n, model.A, generate=datamodel.B)
+output.B.B <- sim(20, n=n, model.B, generate=datamodel.B)
+
+# Find the p-value comparing the observed fit indices against the simulated 
+# sampling distribution of fit indices
+
 pValueNonNested(out.A, out.B, output.A.A, output.A.B, output.B.A, output.B.B)
+
+# If the p-value for model A is significant but the p-value for model B is not
+# significant, model B is preferred.
 }
 }

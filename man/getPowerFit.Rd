@@ -61,36 +61,48 @@ getPowerFit(altObject, cutoff, revDirec = FALSE, usedFit=NULL, ...)
 }
 \examples{
 \dontrun{
+# Null model with one factor
 loading.null <- matrix(0, 6, 1)
 loading.null[1:6, 1] <- NA
-LX.NULL <- simMatrix(loading.null, 0.7)
-RPH.NULL <- symMatrix(diag(1))
-RTD <- symMatrix(diag(6))
-CFA.Model.NULL <- simSetCFA(LY = LX.NULL, RPS = RPH.NULL, RTE = RTD)
-SimData.NULL <- simData(CFA.Model.NULL, 500)
-SimModel <- simModel(CFA.Model.NULL)
+LY.NULL <- bind(loading.null, 0.7)
+RPS.NULL <- binds(diag(1))
+RTE <- binds(diag(6))
+CFA.Model.NULL <- model(LY = LY.NULL, RPS = RPS.NULL, RTE = RTE, modelType="CFA")
+
 # We make the examples running only 5 replications to save time.
 # In reality, more replications are needed.
-Output.NULL <- simResult(5, SimData.NULL, SimModel)
-Cut.NULL <- getCutoff(Output.NULL, 0.95)
+Output.NULL <- sim(5, n=500, model=CFA.Model.NULL)
 
-u79 <- simUnif(0.7, 0.9)
+# Get the fit index cutoff from the null model
+Cut.NULL <- getCutoff(Output.NULL, 0.05)
+
+# Alternative model with two factor
 loading.alt <- matrix(0, 6, 2)
 loading.alt[1:3, 1] <- NA
 loading.alt[4:6, 2] <- NA
-LX.ALT <- simMatrix(loading.alt, 0.7)
+LY.ALT <- bind(loading.alt, 0.7)
 latent.cor.alt <- matrix(NA, 2, 2)
 diag(latent.cor.alt) <- 1
-RPH.ALT <- symMatrix(latent.cor.alt, "u79")
-CFA.Model.ALT <- simSetCFA(LY = LX.ALT, RPS = RPH.ALT, RTE = RTD)
-SimData.ALT <- simData(CFA.Model.ALT, 500)
-Output.ALT <- simResult(5, SimData.ALT, SimModel)
+RPS.ALT <- binds(latent.cor.alt, "runif(1, 0.7, 0.9)")
+CFA.Model.ALT <- model(LY = LY.ALT, RPS = RPS.ALT, RTE = RTE, modelType="CFA")
+
+# We make the examples running only 5 replications to save time.
+# In reality, more replications are needed.
+Output.ALT <- sim(5, n=500, model=CFA.Model.NULL, generate=CFA.Model.ALT)
+
+# Get the power based on the derived cutoff
 getPowerFit(Output.ALT, cutoff=Cut.NULL)
+
+# Get the power based on the rule of thumb proposed by Hu & Bentler (1999)
 Rule.of.thumb <- c(RMSEA=0.05, CFI=0.95, TLI=0.95, SRMR=0.06)
 getPowerFit(Output.ALT, cutoff=Rule.of.thumb, usedFit=c("RMSEA", "CFI", "TLI", "SRMR"))
 
-Output.NULL2 <- simResult(NULL, SimData.NULL, SimModel, n=seq(50, 500, 50))
-Output.ALT2 <- simResult(NULL, SimData.ALT, SimModel, n=seq(50, 500, 50))
+# The example of continous varying sample size. Note that more fine-grained 
+# values of n is needed, e.g., n=seq(50, 500, 1)
+Output.NULL2 <- sim(NULL, n=seq(50, 500, 50), model=CFA.Model.NULL, generate=CFA.Model.NULL)
+Output.ALT2 <- sim(NULL, n=seq(50, 500, 50), model=CFA.Model.NULL, generate=CFA.Model.ALT)
+
+# Get the power based on the derived cutoff from the null model at the sample size of 250
 getPowerFit(Output.ALT2, nullObject=Output.NULL2, nVal=250)
 }
 }
