@@ -1,18 +1,17 @@
-\name{sim}
-\alias{sim}
+\name{exportData}
+\alias{exportData}
 \title{
-	Run a monte carlo simulation with a structural equation model.
+	Export data sets for analysis with outside SEM program.
 }
 \description{
-	This function will draw parameters in data-generation model, create data, impose missing, analyze data by the target model, and summarize the outputs across replications. Data can be transformed by the \code{datafun} argument. The additional output can be extracted by the \code{outfun} argument. Paralleled processing is also availabe by the \code{multicore} argument.
+	This function can be used to export data created from a set of parameters created from \code{\link{draw}}, called a code{paramSet}. This function can export data to be analyzed with either Mplus or LISREL.
 }
 \usage{
-sim(nRep, model, n, generate = NULL, rawData = NULL, miss = NULL, datafun=NULL, outfun=NULL,
+exportData(nRep, model, n, program = "Mplus", fileStem = "sim", miss = NULL, missCode = -999, datafun=NULL, 
 pmMCAR = NULL, pmMAR = NULL, facDist = NULL, indDist = NULL, errorDist = NULL, sequential = FALSE, 
 modelBoot = FALSE, realData = NULL, maxDraw = 50, misfitType = "f0", 
 misfitBounds = NULL, averageNumMisspec = NULL, optMisfit=NULL, optDraws = 50, 
-aux = NULL, seed = 123321, silent = FALSE, multicore = FALSE, cluster = FALSE, numProc = NULL,  
-paramOnly = FALSE, dataOnly=FALSE, smartStart=FALSE, ...)
+seed = 123321, silent = FALSE, multicore = FALSE, numProc = NULL,  params = FALSE)
 }
 \arguments{
   \item{nRep}{
@@ -24,20 +23,20 @@ paramOnly = FALSE, dataOnly=FALSE, smartStart=FALSE, ...)
   \item{n}{
 	Sample size. This argument is not necessary except the user wish to vary sample size across replications. The sample size here is a vector of sample size in integers. For the random distribution object, if the resulting value has decimal, the value will be rounded. 
 }
-  \item{generate}{
-	\code{\linkS4class{SimSem}} object created by \code{\link{model}}. If included, this will be used to generate data instead of the code{\linkS4class{SimSem}} object specified in the \code{model} option.
-}
-  \item{rawData}{
-	If included, this data is used for simulations instead of being generated from the \code{SimSem} template. Should be a list of length nRep.
+  \item{program}{
+	Statistical program that will be used to analyze data. Currently only Mplys and LISREL are supported.
+	}
+  \item{fileStem}{
+	The stem of the filename(s) for file(s) output. For example, a fileStem of "sim" will result in files named sim1.dat, sim2.dat, etc.
 }
   \item{miss}{
 	Missing data handling template, created by the function \code{\link{miss}}.
 }
+  \item{missCode}{
+	Missing data code, NA will be replaced by this value for all missing values in exported data.
+}
   \item{datafun}{
 	Function to be applied to generated data set at each replication.
-}
-  \item{outfun}{
-	Function to be applied to the \code{\linkS4class{lavaan}} output at each replication. The output of this function in each replication will be saved in the simulation output (\code{\linkS4class{SimResult}}). The extra outputs can be obtained by the \code{\link{getExtraOutput}} function.
 }
   \item{pmMCAR}{
 	The percent completely missing at random. This argument is not necessary except the user wish to vary percent missing completely at random across replications. The \code{pmMCAR} here is a vector of percent missing, which the values can be in between 0 and 1 only. The specification of \code{objMissing} is not needed (but is needed if users wish to specify complex missing value data generation or wish to use multiple imputation). 
@@ -82,9 +81,6 @@ paramOnly = FALSE, dataOnly=FALSE, smartStart=FALSE, ...)
   \item{optDraws}{ 
 	Number of parameter sets to draw if optMisfit is not null. The set of parameters with the maximum or minimum misfit will be returned.
 }
-  \item{aux}{
-    The names of auxiliary variables saved in a vector
-}
   \item{seed}{ 
 	Random number seed. Reproducibility across multiple cores or clusters is ensured using R'Lecuyer package.
 }
@@ -94,36 +90,21 @@ paramOnly = FALSE, dataOnly=FALSE, smartStart=FALSE, ...)
   \item{multicore}{ 
 	Use multiple processors within a computer. Specify as TRUE to use it.
 }
-  \item{cluster}{ 
-	Not applicable now. Use for specify nodes in hpc in order to be parallelizable.
-}
   \item{numProc}{ 
 	Number of processors for using multiple processors. If it is \code{NULL}, the package will find the maximum number of processors.
 }
-  \item{paramOnly}{ 
-	If \code{TRUE}, only the parameters from each replication will be returned.
+  \item{params}{ 
+	If \code{TRUE}, the parameters from each replication will be returned.
 }
-  \item{dataOnly}{ 
-	If \code{TRUE}, only the data generated from each replication will be returned.
+
 }
-  \item{smartStart}{
-	Defaults to FALSE. If TRUE, population parameter values that are real numbers will be used as starting values. From testing in small models, the time elapsed for putting population values as starting values was greater than the time reduced during the analysis part. The convergence rates are the same in smartStart of TRUE or FALSE. 
-}
-  \item{\dots}{ 
-	Additional arguments to be passed to lavaan.
-}
-}
+
 \value{
-	A result object (\code{\linkS4class{SimResult}})
+	Text files saved to the current working directory. If \code{program} = "Mplus" one file is output for each replication, and an extra file is output with the names of all saved data sets (this file can be used with the MONTECARLO command in Mplus). If \code{program} = "LISREL" one file is output with each replication stacked on top of the next (this file can be used with the RP command in LISREL). If \code{program} = \code{TRUE}, a list of parameter values for each replication is returned.
 }
-\author{
-	Patrick Miller (Univeristy of Notre Dame; \email{pmille13@nd.edu})
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu})
-}
-\seealso{
-	\itemize{
-		\item \code{\linkS4class{SimResult}} for the resulting output description
-	}
+
+\author{	
+    Alexander M. Schoemann (University of Kansas; \email{schoemann@ku.edu}) 
 }
 \examples{
 loading <- matrix(0, 6, 2)
@@ -141,27 +122,6 @@ VY <- bind(rep(NA,6),2)
 
 CFA.Model <- model(LY = LY, RPS = RPS, RTE = RTE, modelType = "CFA")
 
-# In reality, more than 5 replications are needed.
-Output <- sim(5, CFA.Model,n=200)
-summary(Output)
-
-# Example of data transformation: Transforming to standard score
-fun1 <- function(data) {
-	temp <- scale(data)
-	temp[,"group"] <- data[,"group"]
-	as.data.frame(temp)
+## Export 20 replications to an external data file (not run).
+#exportData(20, CFA.Model, 200)
 }
-
-# Example of additional output: Extract modification indices from lavaan
-fun2 <- function(out) {
-	inspect(out, "mi")
-}
-
-# In reality, more than 5 replications are needed.
-Output <- sim(5, CFA.Model,n=200,datafun=fun1, outfun=fun2)
-summary(Output)
-
-# Get modification indices
-getExtraOutput(Output)
-}
-
