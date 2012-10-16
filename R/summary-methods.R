@@ -57,54 +57,77 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
     cat("Model Type\n")
     print(object@modelType)
     cleanObj <- clean(object)
-    
-    cat("========= Fit Indices Cutoffs ============\n")
-    print(summaryFit(object, alpha = alpha), digits)
-    cat("========= Parameter Estimates and Standard Errors ============\n")
-    print(round(summaryParam(object), digits))
-    cat("========= Correlation between Fit Indices ============\n")
-    fit <- cleanObj@fit[, usedFit]
-    if (length(unique(object@n)) > 1) 
-        fit <- data.frame(fit, n = cleanObj@n)
-    if (length(unique(object@pmMCAR)) > 1) 
-        fit <- data.frame(fit, pmMCAR = cleanObj@pmMCAR)
-    if (length(unique(object@pmMAR)) > 1) 
-        fit <- data.frame(fit, pmMAR = cleanObj@pmMAR)
-    print(round(cor(fit), digits))
-    cat("================== Replications =====================\n")
-    cat("Number of Replications\n")
-    print(object@nRep)
-    cat("Number of Converged Replications\n")
-    print(sum(object@converged == TRUE))
-    if (length(unique(object@n)) > 1) 
-        cat("NOTE: The sample size is varying.\n")
-    if (length(unique(object@pmMCAR)) > 1) 
-        cat("NOTE: The percent of MCAR is varying.\n")
-    if (length(unique(object@pmMAR)) > 1) 
-        cat("NOTE: The percent of MAR is varying.\n")
-    if (!is.null(object@paramValue)) {
-        if ((ncol(object@coef) != ncol(object@paramValue)) | ((ncol(object@coef) == 
-            ncol(object@paramValue)) && any(sort(colnames(object@coef)) != sort(colnames(object@paramValue))))) 
-            cat("NOTE: The data generation model is not the same as the analysis model. See the summary of the population underlying data generation by the summaryPopulation function.\n")
-    }
+    if(!object@paramOnly) {
+		cat("========= Fit Indices Cutoffs ============\n")
+		print(round(summaryFit(object, alpha = alpha), digits))
+		cat("========= Parameter Estimates and Standard Errors ============\n")
+		print(round(summaryParam(object), digits))
+		cat("========= Correlation between Fit Indices ============\n")
+		fit <- cleanObj@fit[, usedFit]
+		if (length(unique(object@n)) > 1) 
+			fit <- data.frame(fit, n = cleanObj@n)
+		if (length(unique(object@pmMCAR)) > 1) 
+			fit <- data.frame(fit, pmMCAR = cleanObj@pmMCAR)
+		if (length(unique(object@pmMAR)) > 1) 
+			fit <- data.frame(fit, pmMAR = cleanObj@pmMAR)
+		print(round(cor(fit), digits))
+		cat("================== Replications =====================\n")
+		cat(paste("Number of replications", "=", object@nRep, "\n"))
+		cat(paste("Number of converged replications", "=", sum(object@converged == 0), "\n"))
+		cat("Number of nonconverged replications: \n")
+		cat(paste("   1.", "Nonconvergent Results", "=", sum(object@converged == 1), "\n"))
+		cat(paste("   2.", "Nonconvergent results from multiple imputation", "=", sum(object@converged == 2), "\n"))
+		cat(paste("   3.", "At least one SE were negative or NA", "=", sum(object@converged == 3), "\n"))
+		cat(paste("   4.", "At least one variance estimates were negative", "=", sum(object@converged == 4), "\n"))
+		cat(paste("   5.", "At least one correlation estimates were greater than 1 or less than -1", "=", sum(object@converged == 5), "\n"))
+		if (length(unique(object@n)) > 1) 
+			cat("NOTE: The sample size is varying.\n")
+		if (length(unique(object@pmMCAR)) > 1) 
+			cat("NOTE: The percent of MCAR is varying.\n")
+		if (length(unique(object@pmMAR)) > 1) 
+			cat("NOTE: The percent of MAR is varying.\n")
+		if (!is.null(object@paramValue)) {
+			if ((ncol(object@coef) != ncol(object@paramValue)) | ((ncol(object@coef) == 
+				ncol(object@paramValue)) && any(sort(colnames(object@coef)) != sort(colnames(object@paramValue))))) 
+				cat("NOTE: The data generation model is not the same as the analysis model. See the summary of the population underlying data generation by the summaryPopulation function.\n")
+		}
+	} else {
+		cat("========= Population Values ============\n")
+		print(summaryPopulation(object), digits)	
+		if(!(all(dim(object@misspecValue) == 0))) {
+			cat("========= Model Misspecification ============\n")
+			print(round(summaryMisspec(object), digits))	
+		}
+	}
 })
 
 setMethod("summary", signature = "SimMissing", definition = function(object) {
     cat("MISSING OBJECT\n")
     handling <- "Maximum Likelihood"
     cat(paste("The method of missing data handling:", handling, "\n"))
-    printcov <- "Covariates (will not impose any missing values):"
+    printcov <- "Covariates:"
     if (length(object@cov) == 1 && object@cov == 0) {
         printcov <- paste(printcov, "none", "\n")
     } else {
         printcov <- paste(printcov, paste(object@cov, collapse = ", "), "\n")
     }
-    cat(printcov)
+	cat(printcov)
+    printignorecol <- "Ignored Variables:"
+    if (length(object@ignoreCols) == 1 && object@ignoreCols == 0) {
+        printignorecol <- paste(printignorecol, "none", "\n")
+    } else {
+        printignorecol <- paste(printignorecol, paste(object@ignoreCols, collapse = ", "), "\n")
+    }
+    cat(printignorecol)
     if (object@pmMCAR != 0) {
         cat(paste("Proportion of MCAR:", round(object@pmMCAR, 3), "\n"))
     }
     if (object@pmMAR != 0) {
         cat(paste("Proportion of MAR:", round(object@pmMAR, 3), "\n"))
+    }
+    if (nchar(object@logit) > 0) {
+        cat("Logistic-regression MAR:\n")
+		cat(paste(object@logit, "\n"))
     }
     if (object@nforms != 0) {
         cat("==========PLANNED MISSING DATA==========\n")

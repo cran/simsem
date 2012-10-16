@@ -18,15 +18,22 @@
 	# The cleaned result objects
 # }
 
-clean <- function(...) {
+clean <- function(..., improper = FALSE) {
     object.l <- list(...)
-    converged <- sapply(object.l, slot, name = "converged")
-    allConverged <- apply(converged, 1, all)
-    if (all(!allConverged)) 
-        stop("All replications in the result object are not convergent. Thus, the result object cannot be used.")
-    object.l <- lapply(object.l, cleanSimResult, converged = allConverged)
-    if (length(object.l) == 1) 
-        object.l <- object.l[[1]]
+	paramOnly <- sapply(object.l, slot, name = "paramOnly")
+	if(all(!paramOnly)) {
+		converged <- sapply(object.l, slot, name = "converged")
+		targetRep <- 0
+		if(improper) targetRep <- c(0, 3:5)
+		allConverged <- matrix(converged %in% targetRep, nrow(converged), ncol(converged))
+		allConverged <- apply(allConverged, 1, all)
+
+		if (all(!allConverged)) 
+			stop("All replications in the result object are not convergent. Thus, the result object cannot be used.")
+		object.l <- lapply(object.l, cleanSimResult, converged = allConverged, improper = improper)
+	}
+	if (length(object.l) == 1) 
+		object.l <- object.l[[1]]
     return(object.l)
 }
 
@@ -53,27 +60,29 @@ clean <- function(...) {
 	# The cleaned result object
 # }
 
-cleanSimResult <- function(object, converged = NULL) {
-    if (is.null(converged)) 
-        converged <- object@converged
+cleanSimResult <- function(object, converged = NULL, improper = FALSE) {
+    if (is.null(converged)) {
+		targetRep <- 0
+		if(improper) targetRep <- c(0, 3:5)
+        converged <- object@converged %in% targetRep
+	}
     object@nRep <- sum(converged)
-    object@coef <- object@coef[converged, ]
-    object@se <- object@se[converged, ]
-    object@fit <- object@fit[converged, ]
-    object@converged <- rep(TRUE, object@nRep)
+    object@coef <- object@coef[converged, , drop=FALSE]
+    object@se <- object@se[converged, , drop=FALSE]
+    object@fit <- object@fit[converged, , drop=FALSE]
     if (!is.null(object@paramValue) && (nrow(object@paramValue) > 1)) 
-        object@paramValue <- object@paramValue[converged, ]
+        object@paramValue <- object@paramValue[converged, , drop=FALSE]
     if (!is.null(object@misspecValue) && (nrow(object@misspecValue) > 1)) 
-        object@misspecValue <- object@misspecValue[converged, ]
+        object@misspecValue <- object@misspecValue[converged, , drop=FALSE]
     if (!is.null(object@popFit) && (nrow(object@popFit) > 1)) 
-        object@popFit <- object@popFit[converged, ]
+        object@popFit <- object@popFit[converged, , drop=FALSE]
     if (!is.null(object@extraOut) && (length(object@extraOut) > 1)) 
         object@extraOut <- object@extraOut[converged]
     if (!is.null(object@FMI1)) 
-        object@FMI1 <- object@FMI1[converged, ]
+        object@FMI1 <- object@FMI1[converged, , drop=FALSE]
     if (!is.null(object@FMI2)) 
-        object@FMI2 <- object@FMI2[converged, ]
-    object@stdCoef <- object@stdCoef[converged, ]
+        object@FMI2 <- object@FMI2[converged, , drop=FALSE]
+    object@stdCoef <- object@stdCoef[converged, , drop=FALSE]
     object@seed <- object@seed
     if (length(object@n) > 1) 
         object@n <- object@n[converged]
@@ -81,6 +90,6 @@ cleanSimResult <- function(object, converged = NULL) {
         object@pmMCAR <- object@pmMCAR[converged]
     if (length(object@pmMAR) > 1) 
         object@pmMAR <- object@pmMAR[converged]
-    object@converged <- rep(TRUE, sum(converged))
+    object@converged <- object@converged[converged]
     return(object)
 } 

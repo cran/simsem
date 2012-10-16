@@ -53,10 +53,12 @@ setMethod("getPowerFitNested", signature(altNested = "SimResult", altParent = "S
 
 setMethod("getPowerFitNested", signature(altNested = "SimResult", altParent = "SimResult", 
     cutoff = "missing"), definition = function(altNested, altParent, cutoff = NULL, 
-    nullNested, nullParent, revDirec = FALSE, usedFit = NULL, alpha = 0.05, nVal = NULL, 
+    nullNested = NULL, nullParent = NULL, revDirec = FALSE, usedFit = NULL, alpha = 0.05, nVal = NULL, 
     pmMCARval = NULL, pmMARval = NULL, df = 0) {
     if (is.null(usedFit)) 
         usedFit <- getKeywords()$usedFit
+	if(is.null(nullNested)) nullNested <- altNested
+	if(is.null(nullParent)) nullParent <- altParent
     mod1 <- clean(altNested, altParent)
     altNested <- mod1[[1]]
     altParent <- mod1[[2]]
@@ -114,6 +116,10 @@ setMethod("getPowerFitNested", signature(altNested = "SimResult", altParent = "S
         usedCutoff <- as.vector(t(getCutoff(nullFit, alpha = alpha, usedFit = usedFit)))
         names(usedCutoff) <- usedFit
         temp <- pValue(usedCutoff, usedDist, revDirec = usedDirec)
+		names(temp) <- usedFit
+		cutoffChisq <- qchisq(1 - alpha, df=(nullNested@fit - nullParent@fit)[,"df"])
+		powerChi <- mean((altNested@fit - altParent@fit)[,"Chi"] > cutoffChisq)
+		temp <- c("TraditionalChi" = powerChi, temp)		
     } else {
         varyingCutoff <- getCutoff(object = nullFit, alpha = alpha, revDirec = FALSE, 
             usedFit = usedFit, predictor = condValue, df = df, predictorVal = "all")
@@ -121,8 +127,8 @@ setMethod("getPowerFitNested", signature(altNested = "SimResult", altParent = "S
             temp[i] <- pValueVariedCutoff(varyingCutoff[, i], usedDist[, i], revDirec = usedDirec[i], 
                 x = condValue, xval = predictorVal)
         }
+		names(temp) <- usedFit
     }
-    names(temp) <- usedFit
     return(temp)
 })
 
