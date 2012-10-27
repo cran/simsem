@@ -22,6 +22,7 @@ Objects can be created by \code{\link{sim}}.
     \item{\code{seed}:}{Seed number. }
 	\item{\code{paramValue}:}{Population model underlying each simulated dataset.}
 	\item{\code{paramOnly}:}{If \code{TRUE}, the result object saves only population characteristics and do not save sample characteristics (e.g., parameter estimates and standard errors.}
+	\item{\code{labelParam}:}{The labels of parameters specified in the analysis model.}
 	\item{\code{misspecValue}:}{Misspecified-parameter values that are imposed on the population model in each replication.}
 	\item{\code{popFit}:}{The amount of population misfit. See details at \code{\link{summaryMisspec}}}
 	\item{\code{FMI1}:}{Fraction Missing Method 1.}
@@ -38,7 +39,7 @@ Objects can be created by \code{\link{sim}}.
 \section{Methods}{
 	The following methods are listed alphabetically. More details can be found by following the link of each method.
 	\itemize{
-		\item \code{\link{anova}} to find the averages of model fit statistics and indices for nested models, as well as the differences of model fit indices among models. This function requires at least two \code{SimResult} objects. 
+		\item \code{\link[=anova,SimResult-method]{anova}} to find the averages of model fit statistics and indices for nested models, as well as the differences of model fit indices among models. This function requires at least two \code{SimResult} objects. 
 		\item \code{\link{findPower}} to find a value of independent variables (e.g., sample size) that provides a given value of power of a parameter estimate. 
 		\item \code{\link{getCutoff}} to get the cutoff of fit indices based on a priori alpha level.
 		\item \code{\link{getCutoffNested}} to get the cutoff of the difference in fit indices of nested models based on a priori alpha level. 

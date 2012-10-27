@@ -2,7 +2,7 @@
 sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, rawData = NULL, miss = NULL, datafun = NULL, 
     outfun = NULL, pmMCAR = NULL, pmMAR = NULL, facDist = NULL, indDist = NULL, errorDist = NULL, 
     sequential = FALSE, modelBoot = FALSE, realData = NULL, maxDraw = 50, misfitType = "f0", 
-    misfitBounds = NULL, averageNumMisspec = NULL, optMisfit = NULL, optDraws = 50, 
+    misfitBounds = NULL, averageNumMisspec = NULL, optMisfit = NULL, optDraws = 50, createOrder = c(1, 2, 3), 
     aux = NULL, seed = 123321, silent = FALSE, multicore = FALSE, cluster = FALSE, 
     numProc = NULL, paramOnly = FALSE, dataOnly = FALSE, smartStart = FALSE, ...) {
     start.time0 <- start.time <- proc.time()[3]
@@ -173,7 +173,7 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, rawData = 
                 miss = miss, datafun = datafun, outfun = outfun, silent = silent, 
                 facDist = facDist, indDist = indDist, errorDist = errorDist, sequential = sequential, 
                 realData = realData, maxDraw = maxDraw, misfitBounds = misfitBounds, 
-                averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, 
+                averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, createOrder = createOrder,
                 misfitType = misfitType, aux = aux, paramOnly = paramOnly, dataOnly = dataOnly, smartStart = smartStart, ...)
             stopCluster(cl)
         } else {
@@ -181,7 +181,7 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, rawData = 
                 miss = miss, datafun = datafun, outfun = outfun, silent = silent, 
                 facDist = facDist, indDist = indDist, errorDist = errorDist, sequential = sequential, 
                 realData = realData, maxDraw = maxDraw, misfitBounds = misfitBounds, 
-                averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, 
+                averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, createOrder = createOrder, 
                 misfitType = misfitType, aux = aux, mc.cores = numProc, paramOnly = paramOnly, dataOnly = dataOnly, smartStart = smartStart, ...)
         }
     } else {
@@ -189,7 +189,7 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, rawData = 
             miss = miss, datafun = datafun, outfun = outfun, silent = silent, facDist = facDist, 
             indDist = indDist, errorDist = errorDist, sequential = sequential, realData = realData, 
             maxDraw = maxDraw, misfitBounds = misfitBounds, averageNumMisspec = averageNumMisspec, 
-            optMisfit = optMisfit, optDraws = optDraws, misfitType = misfitType, 
+            optMisfit = optMisfit, optDraws = optDraws,  createOrder = createOrder, misfitType = misfitType, 
             aux = aux, paramOnly = paramOnly, dataOnly = dataOnly, smartStart = smartStart, ...)
     }
     
@@ -250,6 +250,18 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, rawData = 
 		fit <- as.data.frame(do.call(rbind, fit.l))
 		std <- as.data.frame(do.call(rbind, std.l))
 		converged <- as.vector(unlist(converged.l))
+		
+		name <- colnames(coef)
+		haveName <- which(!sapply(Result.l, is.null))
+		lab <- NULL
+		if(length(haveName) > 0) {
+			lab <- Result.l[[haveName[1]]]$labelParam
+			lab[is.na(lab)] <- ""
+			names(lab) <- name
+		} else {
+			lab <- rep("", length(name))
+			names(lab) <- name
+		}
 		if(paramOnly) converged <- rep(TRUE, length(converged))
 		param <- NULL
 		FMI1 <- NULL
@@ -315,7 +327,7 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, rawData = 
 			se = se, fit = fit, converged = converged, seed = seed, paramValue = param, 
 			misspecValue = popMis, popFit = misfitOut, FMI1 = FMI1, FMI2 = FMI2, 
 			stdCoef = std, n = n, nobs=nobs, pmMCAR = pmMCAR, pmMAR = pmMAR, extraOut = extra,
-			paramOnly=paramOnly, timing = timing)
+			paramOnly=paramOnly, labelParam = lab, timing = timing)
 		if (silent) 
 			options(warn = warnT)
 		return <- Result
@@ -328,7 +340,7 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
     outfun = NULL, facDist = NULL, indDist = NULL, indLab = NULL, errorDist = NULL, 
     sequential = FALSE, realData = NULL, silent = FALSE, modelBoot = FALSE, maxDraw = 50, 
     misfitType = "f0", misfitBounds = NULL, averageNumMisspec = NULL, optMisfit = NULL, 
-    optDraws = 50, timing = NULL, aux = NULL, paramOnly = FALSE, dataOnly = FALSE, smartStart = TRUE, ...) {
+    optDraws = 50, createOrder = c(1, 2, 3), timing = NULL, aux = NULL, paramOnly = FALSE, dataOnly = FALSE, smartStart = TRUE, ...) {
     start.time0 <- start.time <- proc.time()[3]
     timing <- list()
     param <- NULL
@@ -339,6 +351,7 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
     extra <- NA
     FMI1 <- NULL
     FMI2 <- NULL
+	labelParam <- NULL
     converged <- 1
     n <- simConds[[2]]
     pmMCAR <- simConds[[3]]
@@ -385,7 +398,7 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
 		# Need to draw parameters
 		genout <- generate(model = generate, n = n, maxDraw = maxDraw, misfitBounds = misfitBounds, 
 			misfitType = misfitType, averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, 
-			optDraws = optDraws, indDist = indDist, sequential = sequential, 
+			optDraws = optDraws, createOrder = createOrder, indDist = indDist, sequential = sequential, 
 			facDist = facDist, errorDist = errorDist, indLab = indLab, modelBoot = modelBoot, 
 			realData = realData, params = TRUE)
 		data <- genout[[1]]
@@ -404,14 +417,12 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
     if (!is.null(miss)) {
         data <- impose(miss, data, pmMCAR=pmMCAR, pmMAR=pmMAR)
     }
-    
     timing$ImposeMissing <- (proc.time()[3] - start.time)
     start.time <- proc.time()[3]
     ## 4. Call user function (if exists)
     if (!is.null(datafun)) {
         data <- datafun(data)
     }
-    
     timing$UserFun <- (proc.time()[3] - start.time)
     start.time <- proc.time()[3]
     
@@ -443,23 +454,25 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
     ## 6. Parse Lavaan Output
 	if (!dataOnly) {
 		if (!is.null(out)) {
-			try(se <- inspect(out, "se"))
 			try(converged <- as.numeric(!inspect(out, "converged")))
-			try(check <- sum(unlist(lapply(se, sum))))
-			try(negVar <- checkVar(out))
-			improperCov <- FALSE
-			try(if(!negVar) {improperCov <- checkCov(out) })
-			try(if (is.na(check) || check == 0) {
-				converged <- 3
-			}, silent = TRUE)
-			try(if (negVar) {
-				converged <- 4
-			}, silent = TRUE)
-			try(if (improperCov) {
-				converged <- 5
-			}, silent = TRUE)
-			if(is(out, "lavaanStar") && length(out@imputed) > 0) {
-				if(out@imputed[[1]][1] < miss@convergentCutoff) converged <- 2
+			if(converged == 0) {
+				try(se <- inspect(out, "se"))
+				try(check <- sum(unlist(lapply(se, sum))))
+				try(negVar <- checkVar(out))
+				improperCov <- FALSE
+				try(if(!negVar) {improperCov <- checkCov(out) })
+				try(if (is.na(check) || check == 0) {
+					converged <- 3
+				}, silent = TRUE)
+				try(if (negVar) {
+					converged <- 4
+				}, silent = TRUE)
+				try(if (improperCov) {
+					converged <- 5
+				}, silent = TRUE)
+				if(is(out, "lavaanStar") && length(out@imputed) > 0) {
+					if(out@imputed[[1]][1] < miss@convergentCutoff) converged <- 2
+				}
 			}
 		}
 		
@@ -482,7 +495,23 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
 			coef <- reduceLavaanParam(inspect(out, "coef"), dgen, indLab, facLab)
 			se <- reduceLavaanParam(se, dgen, indLab, facLab)
 			std <- reduceLavaanParam(standardize(out), dgen, indLab, facLab)
+			labelParam <- getLavaanLabels(inspect(out, "coef"), dgen, indLab, facLab)
 			
+			indexExtraParam <- out@ParTable$op %in% c(":=", ">", "<", "==")
+			if(any(indexExtraParam)) {
+				nameExtraParam <- renameExtraParam(out@ParTable$lhs[indexExtraParam], out@ParTable$op[indexExtraParam], out@ParTable$rhs[indexExtraParam])
+				len <- length(nameExtraParam)
+				lenout <- length(out@Fit@est)
+				indexout <- (lenout-len+1):lenout
+				extracoef <- out@Fit@est[indexout]
+				extrase <- out@Fit@se[indexout]
+				extrastd <- rep(NA, len)
+				names(extracoef) <- names(extrase) <- names(extrastd) <- nameExtraParam
+				coef <- c(coef, extracoef)
+				se <- c(se, extrase)
+				std <- c(std, extrastd)
+				labelParam <- c(labelParam, nameExtraParam)
+			}
 			## 6.1. Call output function (if exists)
 			if (!is.null(outfun)) {
 				extra <- outfun(out)
@@ -514,6 +543,12 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
 				popMis <- NA
 				misfitOut <- NA
 			}
+			
+			if(!is.null(generate@con[[1]])) {
+				extraparam <- collapseExtraParam(paramSet, generate@dgen, fill=TRUE, con=generate@con)
+				names(extraparam) <- renameExtraParam(generate@con$lhs, generate@con$op, generate@con$rhs)
+				popParam <- c(popParam, extraparam)
+			}
 		} else {
 			popParam <- NA  # Real Data
 			popMis <- NA  # Misspecfication
@@ -537,7 +572,7 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
     	
 		Result <- list(coef = coef, se = se, fit = fit, converged = converged, param = popParam, 
         FMI1 = FMI1, FMI2 = FMI2, std = std, timing = timing, extra = extra, popMis = popMis, 
-        misfitOut = misfitOut)
+        misfitOut = misfitOut, labelParam = labelParam)
 		return(Result)
 	} else {
 		return(data)
@@ -851,6 +886,7 @@ reduceLavaanParam <- function(glist, dgen, indLab, facLab) {
 	} else {
 		facLab <- list(facLab)
 	}
+	
     if ("lambda" %in% names && !is.null(dgen[[1]]$LY)) {
         idx <- which(names == "lambda")
         for (i in seq_along(idx)) {
@@ -970,6 +1006,106 @@ reduceLavaanParam <- function(glist, dgen, indLab, facLab) {
     return(final)
 }
 
+## GLIST -> Re-labeled Parameter Estimates
+getLavaanLabels <- function(glist, dgen, indLab, facLab) {
+    # Chunk at a time approach
+    names <- names(glist)
+	label <- NULL
+    if (!is.list(dgen[[1]])) {
+        dgen <- list(dgen)
+    }
+    if ("lambda" %in% names && !is.null(dgen[[1]]$LY)) {
+        idx <- which(names == "lambda")
+        for (i in seq_along(idx)) {
+            free <- is.free(dgen[[i]]$LY@free)
+			label <- c(label, dgen[[i]]$LY@free[free])
+        }
+    }
+    
+    if ("theta" %in% names && (!is.null(dgen[[1]]$TE) || !is.null(dgen[[1]]$RTE))) {
+        idx <- which(names == "theta")
+        for (i in seq_along(idx)) {
+			targetLab <- NULL
+            if (!is.null(dgen[[i]]$TE)) {
+                free <- is.free(dgen[[i]]$TE@free) & lower.tri(dgen[[i]]$TE@free, 
+                  diag = TRUE)
+				targetLab <- dgen[[i]]$TE@free
+            } else {
+                free <- is.free(dgen[[i]]$RTE@free) & lower.tri(dgen[[i]]$RTE@free, 
+                  diag = FALSE)
+				targetLab <- dgen[[i]]$RTE@free
+                if (!is.null(dgen[[i]]$VTE)) {
+                  diag(free) <- is.free(dgen[[i]]$VTE@free)
+				  diag(targetLab) <- dgen[[i]]$VTE@free
+                } else if (!is.null(dgen[[i]]$VY)) {
+                  diag(free) <- is.free(dgen[[i]]$VY@free)
+				  diag(targetLab) <- dgen[[i]]$VY@free
+                }
+            }
+			label <- c(label, targetLab[free])
+        }
+    }
+    if ("psi" %in% names) {
+        idx <- which(names == "psi")
+        for (i in seq_along(idx)) {
+			targetLab <- NULL
+            if (!is.null(dgen[[i]]$PS)) {
+                free <- is.free(dgen[[i]]$PS@free) & lower.tri(dgen[[i]]$PS@free, 
+                  diag = TRUE)
+				targetLab <- dgen[[i]]$PS@free
+            } else {
+                free <- is.free(dgen[[i]]$RPS@free) & lower.tri(dgen[[i]]$RPS@free, 
+                  diag = FALSE)
+				targetLab <- dgen[[i]]$RPS@free
+                if (!is.null(dgen[[i]]$VPS)) {
+                  diag(free) <- is.free(dgen[[i]]$VPS@free)
+				  diag(targetLab) <- dgen[[i]]$VPS@free
+                } else if (!is.null(dgen[[i]]$VE)) {
+                  diag(free) <- is.free(dgen[[i]]$VE@free)
+				  diag(targetLab) <- dgen[[i]]$VE@free
+                }
+            }
+            label <- c(label, targetLab[free])
+        }
+    }
+    
+    if ("beta" %in% names) {
+        idx <- which(names == "beta")
+        for (i in seq_along(idx)) {
+            free <- is.free(dgen[[i]]$BE@free)
+            label <- c(label, dgen[[i]]$BE@free[free])
+        }
+    }
+    
+    if ("alpha" %in% names && (!is.null(dgen[[i]]$AL) || !is.null(dgen[[i]]$ME))) {
+        idx <- which(names == "alpha")
+        for (i in seq_along(idx)) {
+            if (!is.null(dgen[[i]]$AL)) {
+                free <- is.free(dgen[[i]]$AL@free)
+				label <- c(label, dgen[[i]]$AL@free[free])
+            } else {
+                free <- is.free(dgen[[i]]$ME@free)
+				label <- c(label, dgen[[i]]$ME@free[free])
+            }
+        }
+    }
+    
+    if ("nu" %in% names && (!is.null(dgen[[i]]$TY) || !is.null(dgen[[i]]$MY))) {
+        idx <- which(names == "nu")
+        for (i in seq_along(idx)) {
+            if (!is.null(dgen[[i]]$TY)) {
+                free <- is.free(dgen[[i]]$TY@free)
+				label <- c(label, dgen[[i]]$TY@free[free])
+            } else {
+                free <- is.free(dgen[[i]]$MY@free)
+				label <- c(label, dgen[[i]]$MY@free[free])
+            }
+        }
+    }
+    
+    return(label)
+}
+
 is.random <- function(dat) {
     dat[is.empty(dat)] <- "0"
     isRandom <- sapply(dat, FUN = function(x) {
@@ -1081,4 +1217,43 @@ collapseParamSet <- function(param, group, indLab, facLab, latent) {
 	}
 	group <- rep(group, length(lhs))
 	data.frame(lhs=lhs, op=op, rhs=rhs, group=group, ustart2=ustart)
+}
+
+collapseExtraParam <- function(pls, dgen, fill=TRUE, con=NULL) {
+	# Collapse all labels
+	temp <- extractLab(pls, dgen, fill=fill, con=con)
+	target <- temp[[1]]
+	realval <- temp[[2]]
+	
+	oldop <- con$op
+	for(i in 1:length(con[[1]])) {
+		if(con[[2]][i] %in% c(">", "==")) {
+			con[[3]][i] <- paste(con[[1]][i], "-", con[[3]][i])
+			con[[1]][i] <- paste0("diff", i)
+			con[[2]][i] <- ":="
+		} else if (con[[2]][i] == "<") {
+			con[[3]][i] <- paste(con[[3]][i], "-", con[[1]][i])
+			con[[1]][i] <- paste0("diff", i)
+			con[[2]][i] <- ":="
+		}
+	}
+	temp <- applyConScript(target, realval, con)
+	target <- temp[[1]]
+	realval <- temp[[2]]
+	pos <- match(con$lhs, target)
+	result <- realval[pos]
+	names(result) <- target[pos]
+	result
+	
+}
+
+renameExtraParam <- function(lhs, op, rhs) {
+	for(i in 1:length(lhs)) {
+		if(op[i] %in% c(">", "==")) {
+			lhs[i] <- paste(lhs[i], "-", rhs[i])
+		} else if (op[i] == "<") {
+			lhs[i] <- paste(rhs[i], "-", lhs[i])
+		}
+	}
+	lhs	
 }

@@ -47,6 +47,8 @@ setMethod("summary", signature = "SimSem", definition = function(object) {
 		printIfNotNull(dgen$ME, "\nME: mean of Factor.ETA")
 		cat("--------------------------", "\n")
 	}
+	cat("========================Model Constraints========================\n")
+	if(!is.null(object@con)) print(as.data.frame(object@con))
 })
 
 setMethod("summary", signature = "SimResult", definition = function(object, digits = 3, 
@@ -61,7 +63,7 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
 		cat("========= Fit Indices Cutoffs ============\n")
 		print(round(summaryFit(object, alpha = alpha), digits))
 		cat("========= Parameter Estimates and Standard Errors ============\n")
-		print(round(summaryParam(object), digits))
+		print(summaryParam(object, digits=digits))
 		cat("========= Correlation between Fit Indices ============\n")
 		fit <- cleanObj@fit[, usedFit]
 		if (length(unique(object@n)) > 1) 

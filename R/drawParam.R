@@ -8,20 +8,19 @@
 
 
 draw <- function(model, maxDraw = 50, misfitBounds = NULL, averageNumMisspec = FALSE, 
-    optMisfit = NULL, optDraws = 50, misfitType = "f0") {
+    optMisfit = NULL, optDraws = 50, misfitType = "f0", createOrder = c(1, 2, 3)) {
     stopifnot(class(model) == "SimSem")
     drawParam(model@dgen, maxDraw = maxDraw, numFree = max(model@pt$free), misfitBounds = misfitBounds, 
         averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, 
-        misfitType = misfitType)
+        misfitType = misfitType, con = model@con, ord = createOrder)
 }
 
-
-drawParam <- function(paramSet, maxDraw = 50, numFree, misfitBounds = NULL, averageNumMisspec = FALSE, 
-    optMisfit = NULL, optDraws = 50, misfitType = "f0") {
+# Order 1 = constraint, 2 = misspec, 3 = filling parameters
+drawParam <- function(paramSet, maxDraw = 50, numFree = 1, misfitBounds = NULL, averageNumMisspec = FALSE, 
+    optMisfit = NULL, optDraws = 50, misfitType = "f0", con = NULL, ord = c(1, 2, 3)) {
     if (!is.list(paramSet[[1]])) {
         paramSet <- list(paramSet)
     }
-    
     misspec <- any(sapply(paramSet, FUN = function(group) {
         sapply(group, FUN = function(mat) {
             if (!is.null(mat) && length(mat@misspec) != 0 && !any(is.nan(mat@misspec))) {
@@ -48,23 +47,42 @@ drawParam <- function(paramSet, maxDraw = 50, numFree, misfitBounds = NULL, aver
             fullpls <- list()  # list of drawn parameter sets (filled)
             fullmpls <- list()  # list of drawn parameter sets with misspec (filled)
             fullmls <- list()  # list of parameter sets with misspec only (filled)
-            
             for (i in groupLoop) {
-                rpls[[i]] <- lapply(paramSet[[i]], rawDraw)
-                fullpls[[i]] <- fillParam(lapply(rpls[[i]], "[[", 1))
-                fullmpls[[i]] <- fillParam(lapply(rpls[[i]], "[[", 2))
-                fullmls[[i]] <- mapply("-", lapply(rpls[[i]], "[[", 2), lapply(rpls[[i]], 
-                  "[[", 1))
+                rpls[[i]] <- lapply(paramSet[[i]], rawDraw, constraint = FALSE)
+				fullpls[[i]] <- lapply(rpls[[i]], "[[", 1)
+                #fullmpls[[i]] <- lapply(rpls[[i]], "[[", 2)
+                fullmls[[i]] <- lapply(rpls[[i]], "[[", 3)
             }
+			temp <- misspecOrder(real=fullpls, misDraw=fullmls, paramSet=paramSet, con=con, ord=ord)
+            # fullpls <- equalCon(fullpls, paramSet, con=con)
+			# fullmpls <- equalCon(fullmpls, paramSet, con=con)
+            # for (i in groupLoop) {
+                # fullpls[[i]] <- fillParam(fullpls[[i]])
+                # fullmpls[[i]] <- fillParam(fullmpls[[i]])
+            # }
+			fullpls <- temp[[1]]
+			fullmpls <- temp[[2]]
+			
             if (!is.null(optMisfit)) 
                 {
                   # if misfit needs to be optimized
                   stopifnot(optMisfit == "min" || optMisfit == "max")
                   
+				  fillFirst <- ord[ord != 2][1] == 3
+			
                   for (i in groupLoop) {
-                    rpls[[i]] <- lapply(paramSet[[i]], rawDraw, misSpec = FALSE)
+                    fullpls[[i]] <- lapply(paramSet[[i]], rawDraw, misSpec = FALSE, constraint = FALSE)
                   }
-                  fullpls <- lapply(rpls, fillParam)  # fill after drawing misspec
+				  fullplsdraw <- fullpls
+				  
+				  if(fillFirst) {
+					fullpls <- lapply(fullpls, fillParam)
+					fullpls <- equalCon(fullpls, paramSet, fill=TRUE, con=con)
+				  } else {
+				    fullpls <- equalCon(fullpls, paramSet, fill=FALSE, con=con)
+					fullpls <- lapply(fullpls, fillParam)
+				  }
+                  fullpls <- lapply(fullpls, fillParam)  # fill after drawing misspec
                   macsPopls <- lapply(fullpls, createImpliedMACS)
                   
                   if (!(all(is.finite(unlist(lapply(macsPopls, "[[", 2)))) && (sum(unlist(lapply(lapply(lapply(macsPopls, 
@@ -72,7 +90,6 @@ drawParam <- function(paramSet, maxDraw = 50, numFree, misfitBounds = NULL, aver
                     validateObject)))) {
                     ## Checks: 1. all covariances are finite 2. Eigenvalues are less than zero 3.
                     ## Paths and variances are valid
-                    
                     next
                     draw <- draw + 1
                     # because pop matrix is invalid, move on to next draw
@@ -83,17 +100,21 @@ drawParam <- function(paramSet, maxDraw = 50, numFree, misfitBounds = NULL, aver
                   
                   temp <- list()
                   for (i in seq_len(optDraws)) {
-                    misspecDraws <- list()
+                    #misspecDraws <- list()
                     macsMis <- list()
                     temp[[i]] <- list()
                     for (j in groupLoop) {
                       temp[[i]][[j]] <- lapply(paramSet[[j]], rawDraw, misOnly = TRUE)
-                      addMis <- mapply("+", rpls[[j]], temp[[i]][[j]])
-                      misspecDraws[[j]] <- fillParam(lapply(addMis, FUN = function(x) {
-                        if (length(x) == 0) {
-                          x <- NULL
-                        } else x
-                      }))
+					}  
+					misspecDraws <- misspecOrder(real=fullplsdraw, misDraw=temp[[i]], paramSet=paramSet, con=con, ord=ord)[[2]]
+					  
+					for (j in groupLoop) {  
+                      # addMis <- mapply("+", fullplsdraw[[j]], temp[[i]][[j]])
+                      # misspecDraws[[j]] <- fillParam(lapply(addMis, FUN = function(x) {
+                        # if (length(x) == 0) {
+                          # x <- NULL
+                        # } else x
+                      # }))
                       tempMacs <- createImpliedMACS(misspecDraws[[j]])
                       if (all(is.finite(tempMacs$CM)) && (sum(eigen(tempMacs$CM)$values <= 
                         0) == 0)) {
@@ -109,7 +130,6 @@ drawParam <- function(paramSet, maxDraw = 50, numFree, misfitBounds = NULL, aver
                   p <- length(macsPopls[[1]]$M)
                   nElements <- (p + (p * (p + 1)/2)) * ngroups
                   dfParam <- nElements - numFree
-                  
                   misfit <- matrix(0, optDraws, 4)  # need to change for srmr
                   colnames(misfit) <- c("f0", "rmsea", "srmr", "iter")
                   
@@ -138,12 +158,7 @@ drawParam <- function(paramSet, maxDraw = 50, numFree, misfitBounds = NULL, aver
                   }
                   
                   fullmpls <- mls[[iter]]
-                  rawDrawResult <- temp[[iter]]
-                  for (i in groupLoop) {
-
-                    fullmls[[i]] <- mapply("-", lapply(rawDrawResult[[i]], "[[", 
-                      2), rawDrawResult(rpls[[i]], "[[", 1))
-                  }
+				  fullmls <- temp[[iter]]
                   
                 }  # End optimization, return control to normal misspec checks / draws
             
@@ -202,12 +217,35 @@ drawParam <- function(paramSet, maxDraw = 50, numFree, misfitBounds = NULL, aver
             }
             
         } else {
+			
             # no misspecification present
+			
+			# Exclude the misspecification from the order
+			ord <- ord[ord != 2]
             
+			unfillpls <- list()
             fullpls <- list()  # list of drawn parameter sets (filled)
             for (i in groupLoop) {
-                fullpls[[i]] <- fillParam(lapply(paramSet[[i]], rawDraw, misSpec = FALSE))
+				unfillpls[[i]] <- lapply(paramSet[[i]], rawDraw, misSpec = FALSE, constraint = FALSE)
             }
+			fillFirst <- ord[1] == 3
+			# if(fillFirst) {
+				# unfillpls <- lapply(unfillpls, fillParam)
+			# } 
+			# unfillpls <- equalCon(unfillpls, paramSet, fill=fillFirst, con=con)
+			
+			if(fillFirst) {
+				fullpls <- lapply(unfillpls, fillParam)
+				fullpls <- equalCon(fullpls, paramSet, fill=TRUE, con=con)
+			} else {
+				fullpls <- equalCon(unfillpls, paramSet, fill=FALSE, con=con)
+				fullpls <- lapply(fullpls, fillParam)
+			}
+			
+			
+			# for (i in groupLoop) {
+                # fullpls[[i]] <- fillParam(unfillpls[[i]])
+            # }
             if (all(sapply(fullpls, validateObject))) {
                 redpls <- lapply(fullpls, reduceMatrices)
                 macsPopls <- lapply(redpls, createImpliedMACS)
@@ -261,6 +299,7 @@ rawDraw <- function(simDat, constraint = TRUE, misSpec = TRUE, parMisOnly = FALS
         ## will contain param + any misspecification missRaw will contain ONLY the
         ## misspecification
         param <- paramMis <- suppressWarnings(as.numeric(as.vector(free)))
+		
         ## param & paramMis now contain any fixed numeric values in free
         missRaw <- rep(0, length(free))
         
@@ -326,7 +365,7 @@ rawDraw <- function(simDat, constraint = TRUE, misSpec = TRUE, parMisOnly = FALS
         }
         # This is not the full set of options.
         if (misSpec && !parMisOnly && !misOnly) {
-            return(list(param = param, paramMis = paramMis))
+            return(list(param = param, paramMis = paramMis, missRaw = missRaw))
         } else if (parMisOnly) {
             return(paramMis)
         } else if (misOnly) {
@@ -574,4 +613,304 @@ cov2corMod <- function(V) {
     }
     return(V)
 }
- 
+
+equalCon <- function(pls, dgen, fill=FALSE, con=NULL) {
+	# Collapse all labels
+	temp <- extractLab(pls, dgen, fill=fill, con=con)
+	target <- temp[[1]]
+	realval <- temp[[2]]
+	dgen <- temp[[3]]
+	if(!is.null(con) && !is.null(con[[1]])) {
+		temp <- applyConScript(target, realval, con)
+		target <- temp[[1]]
+		realval <- temp[[2]]
+	}
+	if(length(target) == 0) {
+		return(pls)
+	} else {
+		for(j in 1:length(target)) {
+			equalVal <- 0
+			numFound <- 1
+			for(g in 1:length(pls)) {
+				for(i in seq_along(names(pls[[g]]))) {
+					if(!is.null(pls[[g]][[i]])) {
+						temp <- getElement(dgen[[g]], names(pls[[g]])[i])
+						if(!is.null(temp)) {
+							index <- which(temp@free == target[j])
+							for(k in seq_len(length(index))) {
+								# if(numFound == 1) {
+									# equalVal <- pls[[g]][[i]][index[k]]
+								# } else {
+									# pls[[g]][[i]][index[k]] <- equalVal
+								# }
+								pls[[g]][[i]][index[k]] <- realval[j]
+								numFound <- numFound + 1
+							}
+						}
+					}
+				}
+			}
+		}
+		return(pls)
+	}
+	
+}
+
+
+extractLab <- function(pls, dgen, fill=FALSE, con=NULL) {
+	free <- lapply(dgen, function(x) lapply(x, function(y) if(is.null(y)) { return(NULL) } else { return(slot(y, "free")) }))
+	
+	if(fill) {
+		
+		for(i in 1:length(free)) {
+			temp <- free[[i]]
+			if(is.null(temp$PS)) {
+				if(!is.null(temp$RPS)) {
+					temp$PS <- temp$RPS
+					dgen[[i]]$PS <- dgen[[i]]$RPS
+					if(!is.null(temp$VPS)) {
+						diag(temp$PS) <- temp$VPS
+					} else if(!is.null(temp$VE)) {
+						diag(temp$PS) <- temp$VE
+					}
+					dgen[[i]]$PS@free <- temp$PS
+				}
+			}
+			if(is.null(temp$TE)) {
+				if(!is.null(temp$RTE)) {
+					temp$TE <- temp$RTE
+					dgen[[i]]$TE <- dgen[[i]]$RTE
+					if(!is.null(temp$VTE)) {
+						diag(temp$TE) <- temp$VTE
+					} else if(!is.null(temp$VY)) {
+						diag(temp$TE) <- temp$VY
+					}
+					dgen[[i]]$TE@free <- temp$TE
+				}
+			}
+			if(is.null(temp$AL)) {
+				if(!is.null(temp$ME)) {
+					temp$AL <- temp$ME
+					dgen[[i]]$AL <- dgen[[i]]$ME
+				}
+			}
+			if(is.null(temp$TY)) {
+				if(!is.null(temp$MY)) {
+					temp$TY <- temp$MY
+					dgen[[i]]$TY <- dgen[[i]]$MY
+				}
+			}
+			temp$RPS <- NULL
+			temp$VPS <- NULL
+			temp$VE <- NULL
+			temp$RTE <- NULL
+			temp$VTE <- NULL
+			temp$VY <- NULL
+			temp$ME <- NULL
+			temp$MY <- NULL
+			free[[i]][names(temp)] <- temp
+		}
+	}
+	free2 <- do.call(c, lapply(free, function(x) do.call(c, x)))
+	lab <- free2[is.na(suppressWarnings(as.numeric(as.vector(free2)))) & !is.na(free2)]
+	target <- unique(lab) #[duplicated(lab)])
+	
+	val <- lapply(pls, function(x) lapply(x, function(y) if(is.null(y)) { return(NULL) } else { return(y) }))
+	val2 <- do.call(c, lapply(val, function(x) do.call(c, x)))
+	realval <- val2[is.na(suppressWarnings(as.numeric(as.vector(free2)))) & !is.na(free2)]
+	realval <- realval[match(target, lab)]
+	list(target, realval, dgen)
+}
+
+# Make the variable name very very weird so that the assign and get functions will work by setting the labels in the internal environment
+applyConScript <- function(xxxtargetxxx, xxxvalxxx, xxxconxxx, xxxthresholdxxx = 0.00001) {
+	for(i in 1:length(xxxtargetxxx)) {
+		assign(xxxtargetxxx[i], xxxvalxxx[i])
+	}
+	for(i in 1:length(xxxconxxx[[1]])) {
+		if(xxxconxxx[[2]][i] %in% c(":=", "==")) {
+			assign(xxxconxxx[[1]][i], eval(parse(text = xxxconxxx[[3]][i])))
+		} else if (xxxconxxx[[2]][i] == ">") {
+			xxxlhsxxx <- get(xxxconxxx[[1]][i])
+			xxxrhsxxx <- eval(parse(text = xxxconxxx[[3]][i]))
+			if(xxxlhsxxx < xxxrhsxxx) {
+				assign(xxxconxxx[[1]][i], xxxrhsxxx + xxxthresholdxxx)
+			}
+		} else if (xxxconxxx[[3]][i] == ">") {
+			xxxlhsxxx <- get(xxxconxxx[[1]][i])
+			xxxrhsxxx <- eval(parse(text = xxxconxxx[[3]][i]))
+			if(xxxlhsxxx > xxxrhsxxx) {
+				assign(xxxconxxx[[1]][i], xxxrhsxxx - xxxthresholdxxx)
+			}		
+		}
+	}
+	xxxalltargetxxx <- unique(c(xxxtargetxxx, xxxconxxx[[1]]))
+	xxxresultxxx <- NULL
+	for(i in 1:length(xxxalltargetxxx)) {
+		xxxresultxxx <- c(xxxresultxxx, get(xxxalltargetxxx[i]))
+	}
+	list(xxxalltargetxxx, xxxresultxxx)
+}
+
+misspecOrder <- function(real, misDraw, paramSet, con, ord=c(1, 2, 3)) {
+	pls <- list()
+	mpls <- list()
+	# Order 1 = constraint, 2 = misspec, 3 = filling parameters
+	if(isTRUE(all.equal(ord, c(1, 2, 3)))) {
+		# con, misspec, fill
+		real <- equalCon(real, paramSet, con=con)
+		pls <- lapply(real, fillParam)
+		mis <- imposeMis(real, misDraw)
+		mpls <- lapply(mis, fillParam)
+	} else if (isTRUE(all.equal(ord, c(1, 3, 2)))) {
+		# con, fill, misspec
+		real <- equalCon(real, paramSet, con=con)
+		pls <- lapply(real, fillParam)
+		mpls <- imposeMis(pls, misDraw)		
+	} else if (isTRUE(all.equal(ord, c(2, 1, 3)))) {
+		# mis, con, fill
+		mis <- imposeMis(real, misDraw)
+		mis <- equalCon(mis, paramSet, con=con)
+		mpls <- lapply(mis, fillParam)
+		real <- equalCon(real, paramSet, con=con)
+		pls <- lapply(real, fillParam)	
+	} else if (isTRUE(all.equal(ord, c(2, 3, 1)))) {
+		# mis, fill, con
+		mis <- imposeMis(real, misDraw)
+		mis <- lapply(mis, fillParam)
+		mpls <- equalCon(mis, paramSet, con=con, fill=TRUE)
+		real <- lapply(real, fillParam)	
+		pls <- equalCon(real, paramSet, con=con, fill=TRUE)
+	} else if (isTRUE(all.equal(ord, c(3, 1, 2)))) {
+		# fill, con, mis
+		real <- lapply(real, fillParam)
+		pls <- equalCon(real, paramSet, con=con, fill=TRUE)
+		mpls <- imposeMis(pls, misDraw)
+	} else if (isTRUE(all.equal(ord, c(3, 2, 1)))) {
+		# fill, mis, con
+		real <- lapply(real, fillParam)
+		pls <- equalCon(real, paramSet, con=con, fill=TRUE)
+		mis <- imposeMis(real, misDraw)
+		mpls <- equalCon(mis, paramSet, con=con, fill=TRUE)
+	} else {
+		stop("The 'ord' argument specification is incorrect")
+	}
+	list(pls, mpls)
+}
+
+imposeMis <- function(real, misDraw) {
+	result <- list()
+	for (j in 1:length(real)) {
+		addMis <- real[[j]]
+		name <- names(real[[j]])
+		for(i in 1:length(real[[j]])) {
+			tempmis <- getElement(misDraw[[j]], name[i])
+			if(!is.null(tempmis)) {
+				addMis[[i]] <- addMis[[i]] + tempmis
+			} 
+		}
+		#addMis <- mapply("+", real[[j]], misDraw[[j]])
+		result[[j]] <- lapply(addMis, FUN = function(x) {
+			if (length(x) == 0) {
+			  x <- NULL
+			} else x
+		  })
+	}
+	result
+}
+			
+test.draw <- function() {
+path.BE <- matrix(0, 4, 4)
+path.BE[3, 1:2] <- NA
+path.BE[4, 3] <- NA
+starting.BE <- matrix("", 4, 4)
+starting.BE[3, 1:2] <- "runif(1, 0.3, 0.5)"
+starting.BE[4, 3] <- "runif(1,0.5,0.7)"
+mis.path.BE <- matrix(0, 4, 4)
+mis.path.BE[4, 1:2] <- "runif(1,-0.1,0.1)"
+BE <- bind(path.BE, starting.BE, misspec=mis.path.BE)
+
+residual.error <- diag(4)
+residual.error[1,2] <- residual.error[2,1] <- NA
+RPS <- binds(residual.error, "rnorm(1,0.3,0.1)")
+
+ME <- bind(rep(NA, 4), 0)
+
+Path.Model <- model(RPS = RPS, BE = BE, ME = ME, modelType="Path")
+
+param1 <- draw(Path.Model, misfitBounds = c(0.10, 0.12), misfitType="rmsea")
+param2 <- draw(Path.Model, misfitBounds = c(0.03, 0.05), misfitType="f0")
+param3 <- draw(Path.Model, optMisfit = "max", misfitType="f0")
+param4 <- draw(Path.Model, optMisfit = "min", misfitType="f0")
+param5 <- draw(Path.Model, optMisfit = "max", misfitType="f0", optDraws = 10)
+
+}
+
+test.unequalCon <- function() {
+loading.in <- matrix(0, 6, 2)
+loading.in[1:3, 1] <- c("load1", "load2", "load3")
+loading.in[4:6, 2] <- c("load4", "load5", "load6")
+mis <- matrix(0,6,2)
+mis[loading.in == "0"] <- "runif(1, -0.1, 0.1)"
+LY.in <- bind(loading.in, "runif(1, 0.7, 0.8)", mis)
+latent.cor <- matrix(NA, 2, 2)
+diag(latent.cor) <- 1
+RPS <- binds(latent.cor, 0.5)
+RTE <- binds(diag(6))
+VTE <- bind(rep(NA, 6), 0.51)
+VPS1 <- bind(rep(1, 2))
+VPS2 <- bind(rep(NA, 2), c(1.1, 1.2))
+script <- "
+sth := load1 + load2 + load3
+load4 == (load5 + load6) / 2
+load4 > 0
+load5 > 0
+sth2 := load1 - load2
+"
+weak <- model(LY = LY.in, RPS = RPS, VPS=list(VPS1, VPS2), RTE = RTE, VTE=VTE, ngroups=2, modelType = "CFA", con=script)
+dat <- generate(weak, 200)
+out <- analyze(weak, dat)
+Output <- sim(2, weak, n=200) 
+}
+
+test.order <- function() {
+loading.in <- matrix(0, 6, 2)
+loading.in[1:3, 1] <- c("load1", "load2", "load3")
+loading.in[4:6, 2] <- c("load4", "load5", "load6")
+mis <- matrix(0,6,2)
+mis[loading.in == "0"] <- "runif(1, -0.1, 0.1)"
+LY.in <- bind(loading.in, "runif(1, 0.7, 0.8)", mis)
+latent.cor <- matrix(NA, 2, 2)
+diag(latent.cor) <- 1
+RPS <- binds(latent.cor, 0.5)
+RTE <- binds(diag(6))
+VTE <- bind(rep(NA, 6), 0.51)
+VPS1 <- bind(rep(1, 2))
+VPS2 <- bind(rep(NA, 2), c(1.1, 1.2))
+script <- "
+sth := load1 + load2 + load3
+load4 == (load5 + load6) / 2
+load4 > 0
+load5 > 0
+sth2 := load1 - load2
+"
+weak <- model(LY = LY.in, RPS = RPS, VPS=list(VPS1, VPS2), RTE = RTE, VTE=VTE, ngroups=2, modelType = "CFA", con=script)
+draw(weak, createOrder=c(1, 2, 3))
+draw(weak, createOrder=c(1, 3, 2))
+draw(weak, createOrder=c(2, 1, 3))
+draw(weak, createOrder=c(2, 3, 1))
+draw(weak, createOrder=c(3, 1, 2))
+draw(weak, createOrder=c(3, 2, 1))
+dat1 <- generate(weak, 200, createOrder=c(1, 2, 3))
+dat2 <- generate(weak, 200, createOrder=c(1, 3, 2))
+dat3 <- generate(weak, 200, createOrder=c(2, 1, 3))
+dat4 <- generate(weak, 200, createOrder=c(2, 3, 1))
+dat5 <- generate(weak, 200, createOrder=c(3, 1, 2))
+dat6 <- generate(weak, 200, createOrder=c(3, 2, 1))
+Output1 <- sim(3, weak, n=200, createOrder=c(1, 2, 3))
+Output2 <- sim(3, weak, n=200, createOrder=c(1, 3, 2))
+Output3 <- sim(3, weak, n=200, createOrder=c(2, 1, 3))
+Output4 <- sim(3, weak, n=200, createOrder=c(2, 3, 1))
+Output5 <- sim(3, weak, n=200, createOrder=c(3, 1, 2))
+Output6 <- sim(3, weak, n=200, createOrder=c(3, 2, 1))
+}
