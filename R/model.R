@@ -3,14 +3,15 @@
 ## templates for data generation and analyis.
 model <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = NULL, 
     VTE = NULL, VY = NULL, VPS = NULL, VE = NULL, TY = NULL, AL = NULL, MY = NULL, 
-    ME = NULL, modelType = NULL, indLab = NULL, facLab = NULL, groupLab = "group", ngroups = 1,
-	con = NULL) {
+    ME = NULL, KA = NULL, GA = NULL, modelType = NULL, indLab = NULL, facLab = NULL, covLab = NULL, 
+	groupLab = "group", ngroups = 1, con = NULL) {
     
 	con <- parseSyntaxCon(con)
     paramSet <- list(LY = LY, PS = PS, RPS = RPS, TE = TE, RTE = RTE, BE = BE, VTE = VTE, 
-        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME)
+        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, KA = KA, GA = GA)
     if (!is.null(modelType)) {
-        
+        modelType <- tolower(modelType)
+		
         mg <- NULL
         mgidx <- which(sapply(paramSet, is.list))
         mg <- names(mgidx)
@@ -61,10 +62,10 @@ model <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = 
             pt <- NULL
             for (i in seq_along(psl)) {
                 if (i == 1) {
-                  pt <- buildPT(psl[[i]], pt = pt, group = i, facLab = facLab, indLab = indLab)
+                  pt <- buildPT(psl[[i]], pt = pt, group = i, facLab = facLab, indLab = indLab, covLab = covLab)
                 } else {
                   pt <- mapply(pt, buildPT(psl[[i]], pt = pt, group = i, facLab = facLab, 
-                    indLab = indLab), FUN = c, SIMPLIFY = FALSE)
+                    indLab = indLab, covLab = covLab), FUN = c, SIMPLIFY = FALSE)
                 }
             }
             
@@ -78,7 +79,7 @@ model <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = 
         } else {
             # ngroups = 1, and no matrices are lists
             paramSet <- buildModel(paramSet, modelType)
-            pt <- buildPT(paramSet, facLab = facLab, indLab = indLab)
+            pt <- buildPT(paramSet, facLab = facLab, indLab = indLab, covLab = covLab)
             # nullpt <- nullpt(paramSet)
 			pt <- attachConPt(pt, con)
 
@@ -86,7 +87,7 @@ model <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = 
                 groupLab = groupLab, con=con))
         }
     } else {
-        stop("modelType has not been specified. Options are: \"CFA\", \"SEM\", or \"Path\"")
+        stop("modelType has not been specified. Options are: \"cfa\", \"sem\", or \"path\"")
     }
 }
 
@@ -96,7 +97,7 @@ model <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = 
 ## necessary matrices and checks the validity of the model specification.
 buildModel <- function(paramSet, modelType) {
     
-    if (modelType == "CFA") {
+    if (modelType == "cfa") {
         
         if (is.null(paramSet$LY)) 
             stop("A loading (LY) matrix must be specified in CFA models.")
@@ -163,8 +164,17 @@ buildModel <- function(paramSet, modelType) {
         if (is.null(paramSet$ME)) {
             paramSet$ME <- paramSet$AL
         }
-        
-    } else if (modelType == "Path") {
+		
+		# There is a covariate
+        if (!is.null(paramSet$KA) | !is.null(paramSet$GA)) {
+			if (is.null(paramSet$GA)) {
+				paramSet$GA <- bind(matrix(0, ni, ncol(paramSet$KA@free)))
+			} 
+			if (is.null(paramSet$KA)) {
+				paramSet$KA <- bind(matrix(0, ni, ncol(paramSet$GA@free)))
+			} 
+		}       
+    } else if (modelType == "path") {
         
         if (is.null(paramSet$BE)) 
             stop("The path coefficient (BE) matrix has not been specified.")
@@ -192,8 +202,15 @@ buildModel <- function(paramSet, modelType) {
             {
                 paramSet$ME <- bind(rep(NA, ne), popParam = 0)
             }  ## Set factor intercepts to be free, pop value = 0
-        
-    } else if (modelType == "SEM") {
+		if (!is.null(paramSet$GA) & !is.null(paramSet$KA)) stop("Conflict: You cannot specify both the covaraite effects on indicators (KA) and factors (GA simultaneously)")
+        if (is.null(paramSet$GA)) {
+			if (!is.null(paramSet$KA)) {
+				paramSet$GA <- paramSet$KA
+				paramSet$KA <- NULL
+			} 
+		}
+		
+    } else if (modelType == "sem") {
         
         if (is.null(paramSet$LY)) 
             stop("A loading (LY) matrix must be specified in SEM models.")
@@ -253,6 +270,16 @@ buildModel <- function(paramSet, modelType) {
             }  ## Set factor means to be fixed at 0
         # if(is.null(paramSet$AL)) { AL <- bind(rep(0,ne)) } ## Set factor intercepts
         # to be fixed at 0
+		
+		# There is a covariate
+        if (!is.null(paramSet$KA) | !is.null(paramSet$GA)) {
+			if (is.null(paramSet$GA)) {
+				paramSet$GA <- bind(matrix(0, ny, ncol(paramSet$KA@free)))
+			} 
+			if (is.null(paramSet$KA)) {
+				paramSet$KA <- bind(matrix(0, ny, ncol(paramSet$GA@free)))
+			} 
+		}
     } else {
         stop("modelType not recognized. Options are: \"CFA\", \"SEM\", or \"Path\"")
     }
@@ -265,7 +292,7 @@ buildModel <- function(paramSet, modelType) {
 ## analysis with lavaan.  This time, PT will only take a sg paramSet. And while
 ## I'm at it, I'm taking out the df stuff.
 
-buildPT <- function(paramSet, pt = NULL, group = 1, facLab = NULL, indLab = NULL) {
+buildPT <- function(paramSet, pt = NULL, group = 1, facLab = NULL, indLab = NULL, covLab = NULL) {
     
     ## Convert a chunk at a time - starting with LY - factor loading. At least
     ## LY,PS/RPS must be specified.
@@ -446,13 +473,61 @@ buildPT <- function(paramSet, pt = NULL, group = 1, facLab = NULL, indLab = NULL
         pt <- mapply(pt, parseFree(paramSet$TY, group = group, pt = pt, op = "~1", 
             lhs, rhs), FUN = c, SIMPLIFY = FALSE)
     }
-    
+
+	nz <- NULL # Save for create covariances and means among covariates
+	
+    ## GA - Regressions of factors on covariates
+    if (!is.null(paramSet$GA)) {
+        nf <- nrow(paramSet$GA@free)
+        nz <- ncol(paramSet$GA@free)
+        if (is.null(psLab)) {
+            lhs <- rep(paste(psLetter, 1:nf, sep = ""), each = nz)
+        } else {
+            lhs <- rep(psLab, each = nz)
+        }
+		if (is.null(covLab)) {
+			covLab <- paste("z", 1:nz, sep = "") # Save for create covariances and means among covariates
+		} 
+		rhs <- rep(covLab, times = nf)
+        pt <- mapply(pt, parseFree(paramSet$GA, group = group, pt = pt, op = "~", 
+            lhs, rhs), FUN = c, SIMPLIFY = FALSE)
+    }
+ 
+    ## KA - Regressions of factors on indicators
+    if (!is.null(paramSet$KA)) {
+        ni <- nrow(paramSet$KA@free)
+        nz <- ncol(paramSet$KA@free)
+		
+		if (is.null(indLab)) {
+            lhs <- rep(paste0("y", 1:ni) , each = nz)
+        } else {
+            lhs <- rep(indLab, each = nz)
+        }
+		if (is.null(covLab)) {
+			covLab <- paste("z", 1:nz, sep = "") # Save for create covariances and means among covariates
+		} 
+		rhs <- rep(covLab, times = ni)
+        pt <- mapply(pt, parseFree(paramSet$KA, group = group, pt = pt, op = "~", 
+            lhs, rhs), FUN = c, SIMPLIFY = FALSE)
+    }
+
+	# Create parameter table for covariates
+	if(!is.null(covLab)) {
+		lhs <- rep(covLab, nz:1)
+		rhs <- unlist(lapply(1:nz, function(k) covLab[k:nz]))
+		pt <- mapply(pt, parseFree(bind(matrix(0, nz, nz), symmetric=TRUE), group = group, pt = pt, op = "~~", 
+                lhs, rhs, exo = 1, forceUstart = NA), FUN = c, SIMPLIFY = FALSE)	
+		lhs2 <- covLab		
+		rhs2 <- rep("", times = nz)
+		pt <- mapply(pt, parseFree(bind(rep(0, nz)), group = group, pt = pt, op = "~1", 
+            lhs2, rhs2, exo = 1, forceUstart = NA), FUN = c, SIMPLIFY = FALSE)
+	}
     return(pt)
 }
 
 ## Returns a pt (list) of parsed SimMatrix/SimVector
 parseFree <- function(simDat, group, pt, op, lhs = NULL, rhs = NULL,
-    swap = FALSE) {
+    swap = FALSE, exo = 0, forceUstart = NULL) {
     ## Calculate starting indices from previous pt
     if (!is.null(pt)) {
         startId <- max(pt$id) + 1
@@ -486,8 +561,12 @@ parseFree <- function(simDat, group, pt, op, lhs = NULL, rhs = NULL,
     user <- rep(0, numElem)
     group <- rep(group, numElem)
     free <- freeIdx(freeDat, start = startFree, symm = (op == "~~"))
-    ustart <- startingVal(freeDat, popParamDat, symm = (op == "~~"))
-    exo <- rep(0, length(id))
+	if(is.null(forceUstart)) {
+		ustart <- startingVal(freeDat, popParamDat, symm = (op == "~~"))
+	} else {
+		ustart <- rep(forceUstart, numElem)
+	}
+    exo <- rep(exo, length(id))
     eq.id <- eqIdx(freeDat, id, symm = (op == "~~"))
     label <- names(eq.id)
     eq.id <- as.vector(eq.id)
@@ -659,34 +738,46 @@ btwGroupCons <- function(pt) {
 ######################## Create some shortcuts ########################
 
 model.cfa <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, VTE = NULL, 
-    VY = NULL, VPS = NULL, VE = NULL, TY = NULL, AL = NULL, MY = NULL, ME = NULL, 
-    indLab = NULL, facLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
+    VY = NULL, VPS = NULL, VE = NULL, TY = NULL, AL = NULL, MY = NULL, ME = NULL, KA = NULL, GA = NULL, 
+    indLab = NULL, facLab = NULL, covLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
     model(LY = LY, PS = PS, RPS = RPS, TE = TE, RTE = RTE, BE = NULL, VTE = VTE, 
-        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, modelType = "CFA", 
-        indLab = indLab, facLab = facLab, groupLab = groupLab, ngroups = ngroups, con = con)
+        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, KA = KA, GA = GA, modelType = "cfa", 
+        indLab = indLab, facLab = facLab, covLab = covLab, groupLab = groupLab, ngroups = ngroups, con = con)
 }
 
 model.path <- function(PS = NULL, RPS = NULL, BE = NULL, VPS = NULL, VE = NULL, AL = NULL, 
-    ME = NULL, indLab = NULL, facLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
+    ME = NULL, KA = NULL, GA = NULL, indLab = NULL, facLab = NULL, covLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
     model(LY = NULL, PS = PS, RPS = RPS, TE = NULL, RTE = NULL, BE = BE, VTE = NULL, 
-        VY = NULL, VPS = VPS, VE = VE, TY = NULL, AL = AL, MY = NULL, ME = ME, modelType = "Path", 
-        indLab = indLab, facLab = facLab, groupLab = groupLab, ngroups = ngroups, con = con)
+        VY = NULL, VPS = VPS, VE = VE, TY = NULL, AL = AL, MY = NULL, ME = ME, KA = KA, GA = GA, modelType = "path", 
+        indLab = indLab, facLab = facLab, groupLab = groupLab, covLab = covLab, ngroups = ngroups, con = con)
 }
 
 model.sem <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = NULL, 
     VTE = NULL, VY = NULL, VPS = NULL, VE = NULL, TY = NULL, AL = NULL, MY = NULL, 
-    ME = NULL, indLab = NULL, facLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
+    ME = NULL, KA = NULL, GA = NULL, indLab = NULL, facLab = NULL, covLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
     model(LY = LY, PS = PS, RPS = RPS, TE = TE, RTE = RTE, BE = BE, VTE = VTE, VY = VY, 
-        VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, modelType = "SEM", 
-        indLab = indLab, facLab = facLab, groupLab = groupLab, ngroups = ngroups, con = con)
+        VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, KA = KA, GA = GA, modelType = "sem", 
+        indLab = indLab, facLab = facLab, groupLab = groupLab, covLab = covLab, ngroups = ngroups, con = con)
 }
 
 estmodel <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = NULL, 
     VTE = NULL, VY = NULL, VPS = NULL, VE = NULL, TY = NULL, AL = NULL, MY = NULL, 
-    ME = NULL, modelType, indLab = NULL, facLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
+    ME = NULL, KA = NULL, GA = NULL, modelType, indLab = NULL, facLab = NULL, covLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
     if (is.null(modelType)) 
-        stop("modelType has not been specified. Options are: \"CFA\", \"SEM\", or \"Path\"")
-    if (modelType == "CFA") {
+        stop("modelType has not been specified. Options are: \"cfa\", \"sem\", or \"path\"")
+	modelType <- tolower(modelType)
+
+	if (!is.null(GA)) {
+		if (!is.list(GA)) GA <- list(GA)
+		GA <- lapply(GA, bind)
+	}
+	if (modelType != "path") {
+		if (!is.null(KA)) {
+			if (!is.list(KA)) KA <- list(KA)
+			KA <- lapply(KA, bind)		
+		}
+	}
+    if (modelType == "cfa") {
         if (!is.list(LY)) 
             LY <- list(LY)
         ne <- ncol(LY[[1]])
@@ -788,7 +879,7 @@ estmodel <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE
                 AL <- list(bind(AL))
             }
         }
-    } else if (modelType == "Path") {
+    } else if (modelType == "path") {
         if (!is.list(BE)) 
             BE <- list(BE)
         ne <- ncol(BE[[1]])
@@ -847,7 +938,7 @@ estmodel <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE
                 AL <- list(bind(AL))
             }
         }
-    } else if (modelType == "SEM") {
+    } else if (modelType == "sem") {
         if (!is.list(LY)) 
             LY <- list(LY)
         ne <- ncol(LY[[1]])
@@ -994,63 +1085,75 @@ estmodel <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE
         MY <- rep(MY, ngroups)
     if (!is.null(ME) && (ngroups != length(ME))) 
         ME <- rep(ME, ngroups)
-    
+    if (!is.null(GA) && (ngroups != length(GA))) 
+        GA <- rep(GA, ngroups)
+    if (!is.null(KA) && (ngroups != length(KA))) 
+        KA <- rep(KA, ngroups)
+	
     model(LY = LY, PS = PS, RPS = RPS, TE = TE, RTE = RTE, BE = BE, VTE = VTE, VY = VY, 
-        VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, modelType = modelType, 
-        indLab = indLab, facLab = facLab, groupLab = groupLab, ngroups = ngroups, con = con)
+        VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, KA = KA, GA = GA, modelType = modelType, 
+        indLab = indLab, facLab = facLab, covLab = covLab, groupLab = groupLab, ngroups = ngroups, con = con)
 }
 
 estmodel.cfa <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, 
     VTE = NULL, VY = NULL, VPS = NULL, VE = NULL, TY = NULL, AL = NULL, MY = NULL, 
-    ME = NULL, indLab = NULL, facLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
+    ME = NULL, KA = NULL, GA = NULL, indLab = NULL, facLab = NULL, covLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
     estmodel(LY = LY, PS = PS, RPS = RPS, TE = TE, RTE = RTE, BE = NULL, VTE = VTE, 
-        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, modelType = "CFA", 
-        indLab = indLab, facLab = facLab, groupLab = groupLab, ngroups = ngroups, con = con)
+        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, KA = KA, GA = GA, modelType = "CFA", 
+        indLab = indLab, facLab = facLab, covLab = covLab, groupLab = groupLab, ngroups = ngroups, con = con)
 }
 
 estmodel.path <- function(PS = NULL, RPS = NULL, BE = NULL, VPS = NULL, VE = NULL, 
-    AL = NULL, ME = NULL, indLab = NULL, facLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
+    AL = NULL, ME = NULL, KA = NULL, GA = NULL, indLab = NULL, facLab = NULL, covLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
     estmodel(LY = NULL, PS = PS, RPS = RPS, TE = NULL, RTE = NULL, BE = BE, VTE = NULL, 
-        VY = NULL, VPS = VPS, VE = VE, TY = NULL, AL = AL, MY = NULL, ME = ME, modelType = "Path", 
-        indLab = indLab, facLab = facLab, groupLab = groupLab, ngroups = ngroups, con = con)
+        VY = NULL, VPS = VPS, VE = VE, TY = NULL, AL = AL, MY = NULL, ME = ME, KA = KA, GA = GA, modelType = "Path", 
+        indLab = indLab, facLab = facLab, covLab = covLab, groupLab = groupLab, ngroups = ngroups, con = con)
 }
 
 estmodel.sem <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, 
     BE = NULL, VTE = NULL, VY = NULL, VPS = NULL, VE = NULL, TY = NULL, AL = NULL, 
-    MY = NULL, ME = NULL, indLab = NULL, facLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
+    MY = NULL, ME = NULL, KA = NULL, GA = NULL, indLab = NULL, facLab = NULL, covLab = NULL, groupLab = "group", ngroups = 1, con = NULL) {
     estmodel(LY = LY, PS = PS, RPS = RPS, TE = TE, RTE = RTE, BE = BE, VTE = VTE, 
-        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, modelType = "SEM", 
-        indLab = indLab, facLab = facLab, groupLab = groupLab, ngroups = ngroups, con = con)
+        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, KA = KA, GA = GA, modelType = "SEM", 
+        indLab = indLab, facLab = facLab, covLab = covLab, groupLab = groupLab, ngroups = ngroups, con = con)
 }
 
 model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, TE = NULL, 
     RTE = NULL, BE = NULL, VTE = NULL, VY = NULL, VPS = NULL, VE = NULL, TY = NULL, 
-    AL = NULL, MY = NULL, ME = NULL) {
+    AL = NULL, MY = NULL, ME = NULL, KA = NULL, GA = NULL) {
     ngroups <- object@Model@ngroups
     name <- names(object@Model@GLIST)
     modelType <- NULL
     indLab <- NULL
     facLab <- NULL
+	covLab <- unique(object@ParTable$lhs[object@ParTable$op == "~~" & object@ParTable$exo == 1])
+	if(length(covLab) == 0) covLab <- NULL
+	
     if (isTRUE(all.equal(object@Model@dimNames[[1]][[1]], object@Model@dimNames[[1]][[2]]))) {
-        indLab <- object@Model@dimNames[[1]][[1]]
-        modelType <- "Path"
+        indLab <- setdiff(object@Model@dimNames[[1]][[1]], covLab)
+		facLab <- indLab
+        modelType <- "path"
     } else {
-        indLab <- object@Model@dimNames[[1]][[1]]
-        facLab <- object@Model@dimNames[[1]][[2]]
+        indLab <- setdiff(object@Model@dimNames[[1]][[1]], covLab)
+        facLab <- setdiff(object@Model@dimNames[[1]][[2]], c(covLab, indLab))
         if ("beta" %in% name) {
-            modelType <- "SEM"
+            modelType <- "sem"
         } else {
-            modelType <- "CFA"
+            modelType <- "cfa"
         }
     }
     
     if (std) {
         est <- standardize(object)
+		if(!is.null(covLab)) est <- reshuffleParamGroup(est, covLab, indLab, facLab, ngroups)
         free <- lapply(est, function(x) {
-            x[!(round(x, 4) == 1 | round(x, 4) == 0)] <- NA
+			if(!is.null(x)) {
+				x[!(round(x, 4) == 1 | round(x, 4) == 0)] <- NA
+			}
             x
         })
-        freeUnstd <- inspect(object, "free")
+        freeUnstd <- labelFree(inspect(object, "free"), object@Model@isSymmetric)
+		if(!is.null(covLab)) freeUnstd <- reshuffleParamGroup(freeUnstd, covLab, indLab, facLab, ngroups)
         if (!is.null(PS)) 
             stop("Misspecification is not allowed in PS if 'std' is TRUE.")
         if (!is.null(TE)) 
@@ -1061,20 +1164,29 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
             stop("Misspecification is not allowed in VY if 'std' is TRUE.")
         
         FUN <- function(x, y = NULL, z = NULL, h) {
-            x[is.na(x) & (h != 0)] <- paste0("simcon", h[is.na(x) & (h != 0)])
+			if(!is.null(h)) {
+				x[(is.na(x) & (h != 0)) & is.na(h)] <- NA
+				x[(is.na(x) & (h != 0)) & !is.na(h)] <- h[(is.na(x) & (h != 0)) & !is.na(h)]
+			}
             y[!is.free(x)] <- ""
             bind(x, y, z)
         }
         FUNS <- function(x, y, z = NULL, h) {
-            x[is.na(x) & (h != 0)] <- paste0("simcon", h[is.na(x) & (h != 0)])
+			if(!is.null(h)) {
+				x[(is.na(x) & (h != 0)) & is.na(h)] <- NA
+				x[(is.na(x) & (h != 0)) & !is.na(h)] <- h[(is.na(x) & (h != 0)) & !is.na(h)]
+			}
             diag(x) <- 1
             if (is.matrix(y)) 
                 y[!is.free(x)] <- ""
             binds(x, y, z)
         }
         FUNV <- function(x, y = NULL, z = NULL, h) {
-            h <- diag(h)
-            x[is.na(x) & (h != 0)] <- paste0("simcon", h[is.na(x) & (h != 0)])
+			if(!is.null(h)) {
+				h <- diag(h)
+				x[(is.na(x) & (h != 0)) & is.na(h)] <- NA
+				x[(is.na(x) & (h != 0)) & !is.na(h)] <- h[(is.na(x) & (h != 0)) & !is.na(h)]
+			}
             y[!is.free(x)] <- ""
             bind(x, y, z)
         }
@@ -1084,7 +1196,7 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
         RPS <- mapply(FUNS, x = free[names(free) == "psi"], y = est[names(est) == 
             "psi"], z = RPS, h = freeUnstd[names(freeUnstd) == "psi"], SIMPLIFY = FALSE)
         
-        if (modelType %in% c("CFA", "SEM")) {
+        if (modelType %in% c("cfa", "sem")) {
             ne <- ncol(est[["lambda"]])
             ny <- nrow(est[["lambda"]])
             if (!is.list(LY)) 
@@ -1113,6 +1225,11 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
             TY <- mapply(FUN, x = rep(list(rep(NA, ny)), ngroups), y = rep(list(rep(0, 
                 ny)), ngroups), z = TY, h = freeUnstd[names(freeUnstd) == "nu"], 
                 SIMPLIFY = FALSE)
+            if (!is.null(covLab)) {
+				if (!is.list(KA)) KA <- rep(list(KA), ngroups)
+				KA <- mapply(FUN, x = free[names(free) == "kappa"], y = est[names(est) == 
+                "kappa"], z = KA, h = freeUnstd[names(freeUnstd) == "kappa"], SIMPLIFY = FALSE)
+			}
         } else {
             ne <- ncol(est[["psi"]])
             if (!is.list(AL)) 
@@ -1132,16 +1249,18 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
             BE <- mapply(FUN, x = free[names(free) == "beta"], y = est[names(est) == 
                 "beta"], z = BE, h = freeUnstd[names(freeUnstd) == "beta"], SIMPLIFY = FALSE)
         }
+		if (!is.null(covLab)) {
+			if (!is.list(GA)) GA <- rep(list(GA), ngroups)
+			GA <- mapply(FUN, x = free[names(free) == "gamma"], y = est[names(est) == 
+			"gamma"], z = GA, h = freeUnstd[names(freeUnstd) == "gamma"], SIMPLIFY = FALSE)
+		}
         
     } else {
         est <- inspect(object, "coef")
-        free <- lapply(inspect(object, "free"), function(h) {
-            apply(h, 2, function(x) {
-                x[x != 0] <- paste0("sim", x[x != 0])
-                return(x)
-            })
-        })
-        if (modelType == "Path") {
+		if(!is.null(covLab)) est <- reshuffleParamGroup(est, covLab, indLab, facLab, ngroups)
+        free <- labelFree(inspect(object, "free"), object@Model@isSymmetric)
+		if(!is.null(covLab)) free <- reshuffleParamGroup(free, covLab, indLab, facLab, ngroups)
+        if (modelType == "path") {
             set1 <- lapply(free[names(free) == "beta"], function(x) findRecursiveSet(x)[[1]])
             pospsi <- match("psi", names(free))
             for (i in seq_along(pospsi)) {
@@ -1180,12 +1299,12 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
 			}
             binds(x, y, z)
         }
-        if (!is.list(PS)) 
+		if (!is.list(PS)) 
             PS <- rep(list(PS), ngroups)
-        PS <- mapply(FUNS2, x = free[names(free) == "psi"], y = est[names(est) == 
-            "psi"], z = PS, SIMPLIFY = FALSE)
+		PS <- mapply(FUNS2, x = free[names(free) == "psi"], y = est[names(est) == 
+			"psi"], z = PS, SIMPLIFY = FALSE)
         
-        if (modelType %in% c("CFA", "SEM")) {
+        if (modelType %in% c("cfa", "sem")) {
             if (!is.list(LY)) 
                 LY <- rep(list(LY), ngroups)
             LY <- mapply(FUN2, x = free[names(free) == "lambda"], y = est[names(est) == 
@@ -1198,7 +1317,7 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
             
             if (!is.list(TY)) 
                 TY <- rep(list(TY), ngroups)
-            if ("nu" %in% names(est)) {
+            if ("nu" %in% names(est) && !is.null(est$nu)) {
                 TY <- mapply(FUN2, x = lapply(free[names(free) == "nu"], as.vector), 
                   y = lapply(est[names(est) == "nu"], as.vector), z = TY, SIMPLIFY = FALSE)
             } else {
@@ -1206,15 +1325,21 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
                 TY <- mapply(FUN2, x = rep(list(rep(NA, ny)), ngroups), y = rep(list(rep(0, 
                   ny)), ngroups), z = TY, SIMPLIFY = FALSE)
             }
+			if ("kappa" %in% names(est) && !is.null(est$kappa)) {
+				if (!is.list(KA)) 
+					KA <- rep(list(KA), ngroups)
+				KA <- mapply(FUN2, x = free[names(free) == "kappa"], y = est[names(est) == 
+					"kappa"], z = KA, SIMPLIFY = FALSE)
+			}
         }
         if (!is.list(AL)) 
             AL <- rep(list(AL), ngroups)
-        if ("alpha" %in% names(est)) {
+        if ("alpha" %in% names(est) && !is.null(est$alpha)) {
             AL <- mapply(FUN2, x = lapply(free[names(free) == "alpha"], as.vector), 
                 y = lapply(est[names(est) == "alpha"], as.vector), z = AL, SIMPLIFY = FALSE)
         } else {
             p <- ncol(est[["psi"]])
-            if (modelType == "Path") {
+            if (modelType == "path") {
                 AL <- mapply(FUN2, x = rep(list(rep(NA, p)), ngroups), y = rep(list(rep(0, 
                   p)), ngroups), z = AL, SIMPLIFY = FALSE)
             } else {
@@ -1222,13 +1347,18 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
             }
         }
         
-        if ("beta" %in% names(est)) {
+        if ("beta" %in% names(est) && !is.null(est$beta)) {
             if (!is.list(BE)) 
                 BE <- rep(list(BE), ngroups)
             BE <- mapply(FUN2, x = free[names(free) == "beta"], y = est[names(est) == 
                 "beta"], z = BE, SIMPLIFY = FALSE)
         }
-        
+        if ("gamma" %in% names(est) && !is.null(est$gamma)) {
+			if (!is.list(GA)) 
+				GA <- rep(list(GA), ngroups)
+			GA <- mapply(FUN2, x = free[names(free) == "gamma"], y = est[names(est) == 
+				"gamma"], z = GA, SIMPLIFY = FALSE)
+		}
     }
     groupLab <- object@Options$group
     if (is.null(groupLab)) 
@@ -1241,13 +1371,103 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
 	if(any(pos)) {
 		conList <- list(lhs = pt$lhs[pos], op = pt$op[pos], con = pt$rhs[pos])
 	}
-	
 	# Make the con right here
     result <- model(LY = LY, PS = PS, RPS = RPS, TE = TE, RTE = RTE, BE = BE, VTE = VTE, 
-        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, modelType = modelType, 
-        indLab = indLab, facLab = facLab, groupLab = groupLab, ngroups = ngroups, con = conList)
+        VY = VY, VPS = VPS, VE = VE, TY = TY, AL = AL, MY = MY, ME = ME, GA = GA, KA = KA, modelType = modelType, 
+        indLab = indLab, facLab = facLab, groupLab = groupLab, covLab = covLab, ngroups = ngroups, con = conList)
     return(result)
 }
+
+labelFree <- function(free, symmetric) {
+	free2 <- mapply(function(x, y) { if(y) { return(x[lower.tri(x, diag=TRUE)]) } else { return(x) } }, x = free, y = symmetric)
+	ord <- do.call(c, free2)
+	ord <- ord[ord != 0]
+	target <- paste0("con", 1:length(unique(ord)))
+	nocommon <- !(duplicated(ord) | duplicated(ord, fromLast = TRUE))
+	target[ord[nocommon]] <- NA
+	
+	free <- lapply(free, function(h) {
+            apply(h, 2, function(x) {
+                x[x != 0] <- target[x[x != 0]]
+                return(x)
+            })
+        })
+	free
+}
+		
+## taken shamelessly from param.value in lavaan.
+standardize <- function(object) {
+    
+    GLIST <- object@Model@GLIST
+    est.std <- standardizedSolution(object)$est.std
+    
+    for (mm in 1:length(GLIST)) {
+        ## labels
+        dimnames(GLIST[[mm]]) <- object@Model@dimNames[[mm]]
+        
+        ## fill in starting values
+        m.user.idx <- object@Model@m.user.idx[[mm]]
+        x.user.idx <- object@Model@x.user.idx[[mm]]
+        GLIST[[mm]][m.user.idx] <- est.std[x.user.idx]
+        
+        ## class
+        class(GLIST[[mm]]) <- c("matrix")
+        
+        
+    }
+    GLIST
+}
+
+reshuffleParamGroup <- function(set, covLab, indLab, facLab, ngroups) {
+	if(ngroups > 1) {
+		groupvec <- rep(1:ngroups, each = length(set)/ngroups)
+		setGroup <- split(set, groupvec)
+		result <- lapply(setGroup, reshuffleParam, covLab=covLab, indLab=indLab, facLab=facLab)
+		names(result) <- NULL
+		result <- do.call(c, result)
+	} else {
+		result <- reshuffleParam(set, covLab, indLab, facLab)
+	}
+	return(result)
+}
+
+reshuffleParam <- function(set, covLab, indLab, facLab) {
+	lambda <- NULL
+	theta <- NULL
+	psi <- NULL
+	beta <- NULL
+	nu <- NULL
+	alpha <- NULL
+	gamma <- NULL
+	kappa <- NULL
+
+	if(!is.null(set$lambda)) lambda <- set$lambda[indLab, facLab, drop=FALSE]
+	if(!is.null(set$theta)) theta <- set$theta[indLab, indLab, drop=FALSE]
+	if(!is.null(set$psi)) psi <- set$psi[facLab, facLab, drop=FALSE]
+	if(!is.null(set$beta)) beta <- set$beta[facLab, facLab, drop=FALSE]
+	if(!is.null(set$nu)) nu <- set$nu[indLab, , drop=FALSE]
+	if(!is.null(set$alpha)) alpha <- set$alpha[facLab, , drop=FALSE]
+	
+	covariateFac <- covLab[covLab %in% colnames(set$beta)]
+	if(nrow(lambda) > ncol(lambda)) {
+		singleIndicator <- indLab[indLab %in% colnames(set$beta)]
+		if(length(singleIndicator) > 0) {
+			if(!is.null(set$lambda)) lambda[singleIndicator, ] <- set$beta[singleIndicator, facLab, drop=FALSE]
+			if(!is.null(set$theta)) theta[singleIndicator, singleIndicator] <- set$psi[singleIndicator, singleIndicator, drop=FALSE]
+			if(!is.null(set$nu)) nu[singleIndicator, ] <- set$alpha[singleIndicator, , drop=FALSE]
+		}
+		if(length(covariateFac) > 0) {
+			kappa <- matrix(0, length(indLab), length(covLab), dimnames=list(indLab, covLab))
+			kappa[singleIndicator, covLab] <- set$beta[singleIndicator, covLab, drop=FALSE]
+		}
+	}
+	if(length(covariateFac) > 0) {
+		gamma <- set$beta[facLab, covLab, drop=FALSE]
+	}
+	return(list(lambda=lambda, theta=theta, psi=psi, beta=beta, nu=nu, alpha=alpha, gamma=gamma, kappa=kappa))	
+}
+
+
 
 parseSyntaxCon <- function(script) {
 	if(is.null(script)) return(list(NULL))
@@ -1363,14 +1583,14 @@ test.estmodel <- function() {
     facmean <- rep(0, 2)
     error <- diag(NA, 6)
     cfa3 <- estmodel(LY = loading, PS = list(latent, latent), TE = error, AL = facmean, 
-        TY = intcept, ngroups = 2, modelType = "CFA")
+        TY = intcept, ngroups = 2, modelType = "cfa")
     
     
     path <- matrix(0, 4, 4)
     path[3, 1:2] <- NA
     path[4, 3] <- NA
-    path1 <- estmodel(BE = path, ngroups = 1, modelType = "Path")
-    path2 <- estmodel(BE = path, ngroups = 2, modelType = "Path")
+    path1 <- estmodel(BE = path, ngroups = 1, modelType = "path")
+    path2 <- estmodel(BE = path, ngroups = 2, modelType = "path")
     
     path <- matrix(0, 4, 4)
     path[3, 1:2] <- c("con1", "con2")
@@ -1379,7 +1599,7 @@ test.estmodel <- function() {
     faccov[2, 1] <- faccov[1, 2] <- NA
     facmean <- rep(NA, 4)
     path3 <- estmodel(BE = path, PS = list(faccov, faccov), AL = facmean, ngroups = 2, 
-        modelType = "Path")
+        modelType = "path")
     
     path <- matrix(0, 4, 4)
     path[3, 1:2] <- NA
@@ -1389,8 +1609,8 @@ test.estmodel <- function() {
     loading[4:6, 2] <- NA
     loading[7:9, 3] <- NA
     loading[10:12, 4] <- NA
-    sem1 <- estmodel(LY = loading, BE = path, ngroups = 1, modelType = "SEM")
-    sem2 <- estmodel(LY = loading, BE = path, ngroups = 2, modelType = "SEM")
+    sem1 <- estmodel(LY = loading, BE = path, ngroups = 1, modelType = "sem")
+    sem2 <- estmodel(LY = loading, BE = path, ngroups = 2, modelType = "sem")
     
     path <- matrix(0, 4, 4)
     path[3, 1:2] <- NA
@@ -1406,7 +1626,7 @@ test.estmodel <- function() {
     facmean <- rep(0, 4)
     error <- diag(NA, 12)
     sem3 <- estmodel(LY = loading, BE = path, PS = faccov, TY = intcept, AL = facmean, 
-        TE = error, ngroups = 2, modelType = "SEM")
+        TE = error, ngroups = 2, modelType = "sem")
     
 }
 
@@ -1439,3 +1659,158 @@ test.model.lavaan <- function() {
     dat3 <- generate(model.lavaan(fitsem), n = 200)
     dat3 <- generate(model.lavaan(fitsem, std = TRUE), n = 200)
 } 
+
+test.covData <- function() {
+
+# CFA model with one covariate
+loading <- matrix(0, 9, 3)
+loading[1:3, 1] <- "con1"
+loading[4:6, 2] <- "con2"
+loading[7:9, 3] <- "con3"
+loadingVal <- matrix(0, 9, 3)
+loadingVal[1:3, 1] <- 0.9
+loadingVal[4:6, 2] <- 0.8
+loadingVal[7:9, 3] <- 0.7
+LY <- bind(loading, loadingVal)
+
+latent.cor <- matrix(NA, 3, 3)
+diag(latent.cor) <- 1
+RPS <- binds(latent.cor, 0.5)
+
+RTE <- binds(diag(9))
+
+VTE <- bind(rep(NA, 9), 0.51)
+
+gamma <- matrix(NA, 3, 1)
+GA <- bind(gamma, 0.3)
+
+KA <- bind(matrix(0, 9, 1), misspec = matrix("runif(1, -0.2, 0.2)", 9, 1))
+
+con <- "abc := con1 * con2
+con1 == con2"
+CFA.Model <- model(LY = LY, RPS = RPS, RTE = RTE, VTE=VTE, GA=GA, KA = KA, modelType = "CFA", indLab=paste0("x", 1:9), facLab=c("visual", "textual", "speed"), covLab = "sex", con=con)
+sex <- data.frame(sex = rep(c(0, 1), each=100))
+param <- draw(CFA.Model, covData=sex)
+out <- analyze(CFA.Model, generate(CFA.Model, n=200, covData=sex, params=TRUE))
+Output <- sim(10, n=200, CFA.Model, covData=sex)
+
+# Path analysis model with two covariates
+
+path.BE <- matrix(0, 4, 4)
+path.BE[3, 1:2] <- NA
+path.BE[4, 3] <- NA
+starting.BE <- matrix("", 4, 4)
+starting.BE[3, 1:2] <- "runif(1, 0.3, 0.5)"
+starting.BE[4, 3] <- "runif(1,0.5,0.7)"
+mis.path.BE <- matrix(0, 4, 4)
+mis.path.BE[4, 1:2] <- "runif(1,-0.1,0.1)"
+BE <- bind(path.BE, starting.BE, misspec=mis.path.BE)
+
+residual.error <- diag(4)
+residual.error[1,2] <- residual.error[2,1] <- NA
+RPS <- binds(residual.error, "rnorm(1,0.3,0.1)")
+
+ME <- bind(rep(NA, 4), 0)
+
+gamma <- matrix(NA, 4, 2)
+gammaVal <- matrix(rep(c(0.1, -0.05), each=4), 4, 2)
+GA <- bind(gamma, gammaVal)
+
+Path.Model <- model(RPS = RPS, BE = BE, ME = ME, GA = GA, modelType="Path")
+
+covData <- data.frame(z1 = c(rep(1, 100), rep(0, 100), rep(0, 100)), z2 = c(rep(0, 100), rep(1, 100), rep(0, 100)))
+param <- draw(Path.Model, misfitBounds = c(0.03, 0.05), misfitType="rmsea", covData=covData)
+dat <- createData(param[[1]], n = 300, covData=covData)
+out <- analyze(Path.Model, dat)
+
+Output <- sim(20, n=300, Path.Model, covData=covData)
+
+# SEM model with two covariates
+
+loading <- matrix(0, 8, 3)
+loading[1:3, 1] <- NA
+loading[4:6, 2] <- NA
+loading[7:8, 3] <- "con1"
+loading.start <- matrix("", 8, 3)
+loading.start[1:3, 1] <- 0.7
+loading.start[4:6, 2] <- 0.7
+loading.start[7:8, 3] <- "rnorm(1,0.6,0.05)"
+loading.trivial <- matrix("runif(1, -0.2, 0.2)", 8, 3)
+loading.trivial[is.na(loading)] <- 0
+LY <- bind(loading, loading.start, misspec=loading.trivial)
+
+error.cor.trivial <- matrix("rnorm(1, 0, 0.1)", 8, 8)
+diag(error.cor.trivial) <- 1
+RTE <- binds(diag(8), misspec=error.cor.trivial)
+
+factor.cor <- diag(3)
+factor.cor[1, 2] <- factor.cor[2, 1] <- NA
+RPS <- binds(factor.cor, 0.5)
+
+path <- matrix(0, 3, 3)
+path[3, 1:2] <- NA
+path.start <- matrix(0, 3, 3)
+path.start[3, 1] <- "rnorm(1,0.6,0.05)"
+path.start[3, 2] <- "runif(1,0.3,0.5)"
+BE <- bind(path, path.start)
+
+gamma <- matrix(NA, 3, 2)
+gammaVal <- matrix(rep(c(0.1, -0.05), each=3), 3, 2)
+GA <- bind(gamma, gammaVal)
+
+SEM.model <- model(BE=BE, LY=LY, RPS=RPS, RTE=RTE, GA=GA, modelType="SEM")
+
+covData <- data.frame(z1 = c(rep(1, 100), rep(0, 100), rep(0, 100)), z2 = c(rep(0, 100), rep(1, 100), rep(0, 100)))
+
+dat <- generate(SEM.model, n=300, covData=covData)
+out <- analyze(SEM.model, dat)
+
+Output <- sim(20, n=300, SEM.model, covData=covData, silent=TRUE) 
+
+# model.lavaan with CFA model and one covariate
+
+library(lavaan)
+HS.model <- ' visual  =~ x1 + x2 + x3
+              textual =~ x4 + x5 + x6
+              speed   =~ x7 + x8 + x9 
+			  textual ~ sex
+			  visual ~~ textual
+			  visual ~~ speed
+			  textual ~~ speed
+			  x1 ~ sex
+			  '
+
+object <- cfa(HS.model, data=HolzingerSwineford1939, meanstructure=TRUE)
+model.lavaan(object)
+model.lavaan(object, std=TRUE)
+
+# model.lavaan with path model and one covariate
+
+HS.model2 <- ' x3 ~ x2 + x1
+				x2 ~ x1
+				x2 ~ sex
+				x1 ~ sex
+			  '
+
+object2 <- sem(HS.model2, data=HolzingerSwineford1939)
+model.lavaan(object2)
+model.lavaan(object2, std=TRUE)
+
+# model.lavaan with SEM model and one covariate
+
+HS.model3 <- ' visual  =~ x1 + x2 + x3
+              textual =~ x4 + x5 + x6
+              speed   =~ x7 + x8 + x9 
+			  textual ~ sex
+			  visual ~~ textual
+			  visual ~~ speed
+			  textual ~~ speed
+			  x1 ~ sex
+			  '
+
+object3 <- cfa(HS.model, data=HolzingerSwineford1939, meanstructure=TRUE, group="school", group.equal="loadings")
+mod <- model.lavaan(object3) # Still have a problem
+sexgroup <- data.frame(sex, school=rep(c(1,2,1,2), each=50))
+generate(mod, list(100, 100), covData=sexgroup)
+Output <- sim(10, n=list(100, 100), model=mod, covData=sexgroup)
+}

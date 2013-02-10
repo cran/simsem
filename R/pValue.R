@@ -1,6 +1,6 @@
 # pValue: Find a p-value from an object
 
-setMethod("pValue", signature(target = "numeric", dist = "vector"), definition = function(target, 
+pValueVector <- function(target, 
     dist, revDirec = FALSE, x = NULL, xval = NULL, condCutoff = TRUE, df = 0) {
     if (length(target) == 1) {
         if (is.null(x)) {
@@ -25,9 +25,9 @@ setMethod("pValue", signature(target = "numeric", dist = "vector"), definition =
     } else {
         stop("Something is wrong!")
     }
-})
+}
 
-setMethod("pValue", signature(target = "numeric", dist = "data.frame"), definition = function(target, 
+pValueDataFrame <- function(target, 
     dist, revDirec = NULL, x = NULL, xval = NULL, df = 0, asLogical = FALSE) {
     if (length(target) != ncol(dist)) 
         stop("The length of target and the number of columns of dist are not equal")
@@ -51,21 +51,20 @@ setMethod("pValue", signature(target = "numeric", dist = "data.frame"), definiti
     } else {
         result <- rep(NA, numVar)
         for (i in 1:numVar) {
-            result[i] <- pValue(target[i], dist[, i], revDirec[i], x = x, xval = xval, 
+            result[i] <- pValueVector(target[i], dist[, i], revDirec[i], x = x, xval = xval, 
                 df = df)
         }
         return(result)
     }
-})
+}
 
-setMethod("pValue", signature(target = "lavaan", dist = "SimResult"), definition = function(target, 
+pValue <- function(target, 
     dist, usedFit = NULL, nVal = NULL, pmMCARval = NULL, pmMARval = NULL, df = 0) {
+	if(!is(dist, "SimResult")) stop("The 'dist' object must be a result object.")
+	
     dist <- clean(dist)
-    if (is.null(usedFit)) 
-        usedFit <- getKeywords()$usedFit
-    revDirec <- (usedFit %in% c("CFI", "TLI"))  # CFA --> FALSE, RMSEA --> TRUE
-    
-    
+	usedFit <- cleanUsedFit(usedFit, colnames(dist@fit))
+    revDirec <- (usedFit %in% getKeywords()$reversedFit)  # CFA --> FALSE, RMSEA --> TRUE
     
     if (is.null(nVal) || is.na(nVal)) 
         nVal <- NULL
@@ -95,21 +94,27 @@ setMethod("pValue", signature(target = "lavaan", dist = "SimResult"), definition
             predictorVal[2] <- pmMARval)
     }
     predictorVal <- predictorVal[condition]
-    cutoff <- extractLavaanFit(target)[usedFit]
+	if(is(target, "lavaan")) {
+		cutoff <- inspect(target, "fit")[usedFit]
+	} else if (is(target, "MxModel")) {
+		cutoff <- semTools:::fitMeasuresMx(target)[usedFit]
+	} else {
+		stop("The target argument must be a lavaan object or MxModel object.")
+	}
     if (any(condition)) {
-        result <- pValue(cutoff, Data, revDirec, x = condValue, xval = predictorVal, 
+        result <- pValueDataFrame(cutoff, Data, revDirec, x = condValue, xval = predictorVal, 
             df = df, asLogical = FALSE)
         names(result) <- usedFit
         return(result)
     } else {
-        logicalMat <- pValue(cutoff, Data, revDirec, asLogical = TRUE)
+        logicalMat <- pValueDataFrame(cutoff, Data, revDirec, asLogical = TRUE)
         result <- apply(logicalMat, 2, mean, na.rm = TRUE)
         names(result) <- usedFit
         andRule <- mean(apply(logicalMat, 1, all), na.rm = TRUE)
         orRule <- mean(apply(logicalMat, 1, any), na.rm = TRUE)
         return(c(result, andRule = andRule, orRule = orRule))
     }
-})
+}
 
 # pValueCondCutoff: Find the p-value comparing between a cutoff and a
 # distribution when a cutoff is conditional on a predictor value

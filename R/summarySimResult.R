@@ -4,7 +4,7 @@
 # summaryParam: This function will summarize the obtained parameter estimates
 # and standard error.
 
-summaryParam <- function(object, alpha = 0.05, detail = FALSE, improper = FALSE, digits = NULL) {
+summaryParam <- function(object, alpha = 0.05, detail = FALSE, improper = FALSE, digits = NULL, matchParam = FALSE) {
     object <- clean(object, improper = improper)
     coef <- colMeans(object@coef, na.rm = TRUE)
     real.se <- sapply(object@coef, sd, na.rm = TRUE)
@@ -14,28 +14,42 @@ summaryParam <- function(object, alpha = 0.05, detail = FALSE, improper = FALSE,
     crit.value <- qnorm(1 - alpha/2)
     sig <- abs(z) > crit.value
     pow <- apply(sig, 2, mean, na.rm = TRUE)
-    stdCoef <- colMeans(object@stdCoef, na.rm = TRUE)
-    stdRealSE <- sapply(object@stdCoef, sd, na.rm = TRUE)
-	result <- cbind(coef, real.se, estimated.se, pow, stdCoef, stdRealSE)
-	colnames(result) <- c("Estimate Average", "Estimate SD", "Average SE", "Power (Not equal 0)", 
-		"Std Est", "Std Est SD")
+	result <- cbind(coef, real.se, estimated.se, pow)
+	colnames(result) <- c("Estimate Average", "Estimate SD", "Average SE", "Power (Not equal 0)")
+	
+	if (length(object@stdCoef) != 0) {
+		stdCoef <- colMeans(object@stdCoef, na.rm = TRUE)
+		stdRealSE <- sapply(object@stdCoef, sd, na.rm = TRUE)
+		leftover <- setdiff(rownames(result), names(stdCoef))
+		if(length(leftover) > 0) {
+			temp <- rep(NA, length(leftover))
+			names(temp) <- leftover
+			stdCoef <- c(stdCoef, temp)
+			stdRealSE <- c(stdRealSE, temp)
+		}
+		resultStd <- cbind(stdCoef, stdRealSE)
+        colnames(resultStd) <- c("Std Est", "Std Est SD")
+        result <- data.frame(result, resultStd[rownames(result),])
+	}
 
     if (!is.null(object@paramValue)) {
         targetVar <- match(colnames(object@coef), colnames(object@paramValue))
         targetVar <- targetVar[!is.na(targetVar)]
         paramValue <- object@paramValue[, targetVar]
-        
-        if ((ncol(object@coef) == ncol(paramValue)) && all(colnames(object@coef) == 
+		if(matchParam) result <- result[colnames(paramValue),]
+        if ((nrow(result) == ncol(paramValue)) && all(rownames(result) == 
             colnames(paramValue))) {
             nRep <- object@nRep
-            nParam <- ncol(object@coef)
-            if (nrow(object@paramValue) == 1) 
+            nParam <- nrow(result)
+            if (nrow(paramValue) == 1) 
                 paramValue <- matrix(unlist(rep(paramValue, nRep)), nRep, nParam, 
                   byrow = T)
-            biasParam <- object@coef - paramValue
+			selectCoef <- object@coef[,rownames(result)]
+			selectSE <- object@se[,rownames(result)]
+            biasParam <- selectCoef - paramValue
             crit <- qnorm(1 - alpha/2)
-            lowerBound <- object@coef - crit * object@se
-            upperBound <- object@coef + crit * object@se
+            lowerBound <- selectCoef - crit * selectSE
+            upperBound <- selectCoef + crit * selectSE
             cover <- (paramValue > lowerBound) & (paramValue < upperBound)
             
             average.param <- apply(paramValue, 2, mean, na.rm = TRUE)
@@ -43,7 +57,7 @@ summaryParam <- function(object, alpha = 0.05, detail = FALSE, improper = FALSE,
             average.bias <- apply(biasParam, 2, mean, na.rm = TRUE)
             perc.cover <- apply(cover, 2, mean, na.rm = TRUE)
             sd.bias <- apply(biasParam, 2, sd, na.rm = TRUE)
-            perc.cover[estimated.se == 0] <- NA
+            perc.cover[estimated.se[rownames(result)] == 0] <- NA
             result2 <- cbind(average.param, sd.param, average.bias, sd.bias, perc.cover)
             colnames(result2) <- c("Average Param", "SD Param", "Average Bias", "SD Bias", 
                 "Coverage")
@@ -70,7 +84,7 @@ summaryParam <- function(object, alpha = 0.05, detail = FALSE, improper = FALSE,
         }
     }
     if (length(object@FMI1) != 0 & length(object@FMI2) != 0) {
-        nRep <- nrow(object@coef)
+        nRep <- object@nRep
         nFMI1 <- ncol(object@FMI1)
         FMI1 <- object@FMI1
         FMI2 <- object@FMI2
@@ -110,11 +124,6 @@ summaryParam <- function(object, alpha = 0.05, detail = FALSE, improper = FALSE,
     }
 	if(!is.null(digits)) {
 		result <- round(result, digits)
-	}
-	lab <- abbreviate(object@labelParam[match(names(object@labelParam), names(coef))], 4)
-	if(!all(lab == "")) {
-		lab[lab != ""] <- paste0("(", lab[lab != ""], ")")
-		result <- data.frame("Labels" = lab, result)
 	}
     return(as.data.frame(result))
 } 
@@ -179,10 +188,9 @@ summaryPopulation <- function(object, improper = FALSE) {
 # summaryFit: This function will summarize the obtained fit indices and
 # generate a data frame.
 
-summaryFit <- function(object, alpha = NULL, improper = FALSE) {
+summaryFit <- function(object, alpha = NULL, improper = FALSE, usedFit = NULL) {
     cleanObj <- clean(object, improper = improper)
-    usedFit <- getKeywords()$usedFit
-    
+	usedFit <- cleanUsedFit(usedFit, colnames(object@fit))
     condition <- c(length(unique(object@pmMCAR)) > 1, length(unique(object@pmMAR)) > 
         1, length(unique(object@n)) > 1)
     if (any(condition)) {
@@ -240,8 +248,10 @@ summaryConverge <- function(object, improper = FALSE) {
     if (numnonconverged == 0) 
         stop("You are good! All replications were converged!")
     result <- c(result, list(Converged = c(num.converged = sum(converged), num.nonconverged = numnonconverged)))
-	reasons <- list("Nonconvergent Reasons" = c("Nonconvergent" = sum(object@converged %in% 1:2), "Improper SE" = sum(object@converged == 3), "Improper Variance" = sum(object@converged == 4), "Improper Correlation" = sum(object@converged == 5)))
-	result <- c(result, reasons)
+	reasons <- c("Nonconvergent" = sum(object@converged %in% 1:2), "Improper SE" = sum(object@converged == 3), "Improper Variance" = sum(object@converged == 4), "Improper Correlation" = sum(object@converged == 5), "Optimal estimates were not guaranteed" = sum(object@converged == 6))
+	reasons <- as.matrix(reasons)
+	colnames(reasons) <- "count"
+	result <- c(result, list("Nonconvergent Reasons" = reasons))
     n <- object@n
     pmMCAR <- object@pmMCAR
     pmMAR <- object@pmMAR
@@ -252,7 +262,7 @@ summaryConverge <- function(object, improper = FALSE) {
 	improprep <- rep(FALSE, length(converged))
 	if(improper) {
 		nonconverged <- object@converged %in% 1:2
-		improprep <- object@converged %in% 3:5
+		improprep <- object@converged %in% 3:6
 	}
     if (length(unique(n)) > 1) {
         temp1 <- n[converged]
@@ -302,24 +312,26 @@ summaryConverge <- function(object, improper = FALSE) {
 		}
         result <- c(result, list(pmMAR = c(resultTemp, resultDiff)))
     }
-    temp1 <- paramValue[converged, ]
-    temp2 <- paramValue[nonconverged, ]
-	temp3 <- paramValue[improprep, ]
-	resultTemp <- cbind(mean.convergence = apply(temp1, 2, mean), sd.convergence = apply(temp1, 
-        2, sd))
-	resultDiff <- NULL
-	if(nrow(temp2) > 0) {
-		resultTemp <- cbind(resultTemp, mean.nonconvergence = apply(temp2, 2, mean), sd.nonconvergence = apply(temp2, 2, sd))
-		resultDiff <- cbind(resultDiff, diff.non.mean = apply(temp2, 2, mean) - apply(temp1, 2, mean), 
-        diff.non.sd = apply(temp2, 2, sd) - apply(temp1, 2, sd))
+	if(nrow(paramValue) > 1) {
+		temp1 <- paramValue[converged, , drop = FALSE]
+		temp2 <- paramValue[nonconverged, , drop = FALSE]
+		temp3 <- paramValue[improprep, , drop = FALSE]
+		resultTemp <- cbind(mean.convergence = apply(temp1, 2, mean), sd.convergence = apply(temp1, 
+			2, sd))
+		resultDiff <- NULL
+		if(nrow(temp2) > 0) {
+			resultTemp <- cbind(resultTemp, mean.nonconvergence = apply(temp2, 2, mean), sd.nonconvergence = apply(temp2, 2, sd))
+			resultDiff <- cbind(resultDiff, diff.non.mean = apply(temp2, 2, mean) - apply(temp1, 2, mean), 
+			diff.non.sd = apply(temp2, 2, sd) - apply(temp1, 2, sd))
+		}
+		if(nrow(temp3) > 0) {
+			resultTemp <- cbind(resultTemp, mean.improper = apply(temp3, 2, mean), sd.improper = apply(temp3, 2, sd))
+			resultDiff <- cbind(resultDiff, diff.improper.mean = apply(temp3, 2, mean) - apply(temp1, 2, mean), 
+			diff.improper.sd = apply(temp3, 2, sd) - apply(temp1, 2, sd))
+		}
+		result <- c(result, list(paramValue = cbind(resultTemp, resultDiff)))
 	}
-	if(nrow(temp3) > 0) {
-		resultTemp <- cbind(resultTemp, mean.improper = apply(temp3, 2, mean), sd.improper = apply(temp3, 2, sd))
-		resultDiff <- cbind(resultDiff, diff.improper.mean = apply(temp3, 2, mean) - apply(temp1, 2, mean), 
-        diff.improper.sd = apply(temp3, 2, sd) - apply(temp1, 2, sd))
-	}
-    result <- c(result, list(paramValue = cbind(resultTemp, resultDiff)))
-    if (!all(dim(misspecValue) == 0)) {
+    if (!all(dim(misspecValue) == 0) && nrow(misspecValue) > 1) {
 		temp1 <- misspecValue[converged, ]
 		temp2 <- misspecValue[nonconverged, ]
 		temp3 <- misspecValue[improprep, ]
@@ -338,7 +350,7 @@ summaryConverge <- function(object, improper = FALSE) {
 		}
 		result <- c(result, list(misspecValue = cbind(resultTemp, resultDiff)))
     }
-    if (!all(dim(popFit) == 0)) {
+    if (!all(dim(popFit) == 0) && nrow(popFit) > 1) {
 		temp1 <- popFit[converged, ]
 		temp2 <- popFit[nonconverged, ]
 		temp3 <- popFit[improprep, ]
@@ -365,19 +377,25 @@ summaryConverge <- function(object, improper = FALSE) {
 setPopulation <- function(target, population) {
     psl <- generate(population, n = 20, params = TRUE)$psl
     paramSet <- lapply(psl, "[[", 1)
-    indLabGen <- NULL
-    if (population@modelType == "Path") {
-        indLabGen <- unique(population@pt$lhs)
-    } else {
-        indLabGen <- unique(population@pt$rhs[population@pt$op == "=~"])
-    }
-    facLabGen <- NULL
-    if (population@modelType != "Path") {
-        facLabGen <- unique(population@pt$lhs[population@pt$op == "=~"])
-    }
-    popParam <- reduceParamSet(paramSet, population@dgen, indLabGen, facLabGen)
-    target@paramValue <- as.data.frame(t(data.frame(param = popParam)))
-    return(target)
+	generatedgen <- population@dgen
+	popParam <- NULL
+	if (!is.list(generatedgen[[1]])) {
+		generatedgen <- list(generatedgen)
+	}
+	for (i in seq_along(paramSet)) {
+		popParam <- c(popParam, parsePopulation(generatedgen[[i]], paramSet[[i]], group = i))
+	}
+	extraParamIndex <- population@pt$op %in% c(">", "<", "==", ":=")
+	extraParamName <- NULL
+	if(any(extraParamIndex)) {
+		extraparam <- collapseExtraParam(paramSet, population@dgen, fill=TRUE, con=population@con)
+		extraParamName <- renameExtraParam(population@con$lhs, population@con$op, population@con$rhs)
+		popParam[extraParamIndex] <- extraparam
+	}
+	index <- ((population@pt$free != 0)& !(duplicated(population@pt$free))) | extraParamIndex
+	popParam <- popParam[index]
+	names(popParam) <- c(lavaan:::getParameterLabels(population@pt, type="free"), extraParamName)
+    return(popParam)
 } 
 
 # getPopulation: Description: Extract the population value from an object
@@ -390,7 +408,7 @@ getPopulation <- function(object) {
 
 getExtraOutput <- function(object, improper = FALSE) {
 	targetRep <- 0
-	if(improper) targetRep <- c(0, 3:5)
+	if(improper) targetRep <- c(0, 3:6)
     if (length(object@extraOut) == 0) {
         stop("This simulation result does not contain any extra results")
     } else {

@@ -4,12 +4,16 @@
 setMethod("plotCutoff", signature(object = "data.frame"), definition = function(object, 
     cutoff = NULL, revDirec = FALSE, usedFit = NULL, vector1 = NULL, vector2 = NULL, 
     nameVector1 = NULL, nameVector2 = NULL, alpha = NULL, useContour = T, cutoff2 = NULL) {
-    if (is.null(usedFit)) 
-        usedFit <- getKeywords()$usedFit
+	usedFit <- cleanUsedFit(usedFit, colnames(object))
     object <- as.data.frame(object[, usedFit])
-    cutoff <- cutoff[usedFit]
-    if (!is.null(cutoff2)) 
+	if(!is.null(cutoff)) {
+		names(cutoff) <- cleanUsedFit(names(cutoff))
+		cutoff <- cutoff[usedFit]
+	}
+    if (!is.null(cutoff2)) {
+		names(cutoff2) <- cleanUsedFit(names(cutoff2))
         cutoff2 <- cutoff2[usedFit]
+	}
     object <- as.data.frame(object[, !apply(object, 2, function(vec) all(is.na(vec)))])
     colnames(object) <- usedFit
     if (ncol(object) == 2) {
@@ -27,7 +31,7 @@ setMethod("plotCutoff", signature(object = "data.frame"), definition = function(
         val <- NULL
         if (!is.null(alpha)) {
             val <- 1 - alpha
-            if (usedFit[i] %in% c("CFI", "TLI")) 
+            if (usedFit[i] %in% getKeywords()$reversedFit) 
                 val <- alpha
         }
         if (is.null(vector1) & is.null(vector2)) {

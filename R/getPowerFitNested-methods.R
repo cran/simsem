@@ -71,20 +71,6 @@ getPowerFitNestedCutoff <- function(altNested, altParent, cutoff, revDirec = FAL
 getPowerFitNestedNullObj <- function(altNested, altParent, 
     nullNested, nullParent, revDirec = FALSE, usedFit = NULL, alpha = 0.05, nVal = NULL, 
     pmMCARval = NULL, pmMARval = NULL, df = 0) {
-    if (is.null(usedFit)) 
-        usedFit <- getKeywords()$usedFit
-	if(is.null(nullNested)) nullNested <- altNested
-	if(is.null(nullParent)) nullParent <- altParent
-    mod1 <- clean(altNested, altParent)
-    altNested <- mod1[[1]]
-    altParent <- mod1[[2]]
-    mod2 <- clean(nullNested, nullParent)
-    nullNested <- mod2[[1]]
-    nullParent <- mod2[[2]]
-    if (!isTRUE(all.equal(unique(altNested@paramValue), unique(altParent@paramValue)))) 
-        stop("'altNested' and 'altParent' are based on different data and cannot be compared, check your random seed")
-    if (!isTRUE(all.equal(unique(nullNested@paramValue), unique(nullParent@paramValue)))) 
-        stop("'nullNested' and 'nullParent' are based on different data and cannot be compared, check your random seed")
     if (!multipleAllEqual(unique(altNested@n), unique(altParent@n), unique(nullNested@n), 
         unique(nullParent@n))) 
         stop("Models are based on different values of sample sizes")
@@ -94,6 +80,18 @@ getPowerFitNestedNullObj <- function(altNested, altParent,
     if (!multipleAllEqual(unique(altNested@pmMAR), unique(altParent@pmMAR), unique(nullNested@pmMAR), 
         unique(nullParent@pmMAR))) 
         stop("Models are based on different values of the percent missing at random")
+    if (!isTRUE(all.equal(unique(altNested@paramValue), unique(altParent@paramValue)))) 
+        stop("'altNested' and 'altParent' are based on different data and cannot be compared, check your random seed")
+    if (!isTRUE(all.equal(unique(nullNested@paramValue), unique(nullParent@paramValue)))) 
+        stop("'nullNested' and 'nullParent' are based on different data and cannot be compared, check your random seed")
+	usedFit <- cleanUsedFit(usedFit, colnames(altNested@fit), colnames(altParent@fit), colnames(nullNested@fit), colnames(nullParent@fit))
+	if(is.null(nullNested)) nullNested <- altNested
+	if(is.null(nullParent)) nullParent <- altParent
+    mod <- clean(altNested, altParent, nullNested, nullParent)
+    altNested <- mod[[1]]
+    altParent <- mod[[2]]
+    nullNested <- mod[[3]]
+    nullParent <- mod[[4]]
     if (is.null(nVal) || is.na(nVal)) 
         nVal <- NULL
     if (is.null(pmMCARval) || is.na(pmMCARval)) 
@@ -122,7 +120,7 @@ getPowerFitNestedNullObj <- function(altNested, altParent,
     }
     predictorVal <- predictorVal[condition]
     
-    usedDirec <- (usedFit %in% c("CFI", "TLI"))  # CFA --> TRUE, RMSEA --> FALSE
+    usedDirec <- (usedFit %in% getKeywords()$reversedFit)  # CFA --> TRUE, RMSEA --> FALSE
     if (revDirec) 
         usedDirec <- !usedDirec
     usedDist <- as.data.frame((altNested@fit - altParent@fit)[, usedFit])
@@ -131,11 +129,13 @@ getPowerFitNestedNullObj <- function(altNested, altParent,
     if (is.null(condValue)) {
         usedCutoff <- as.vector(t(getCutoff(nullFit, alpha = alpha, usedFit = usedFit)))
         names(usedCutoff) <- usedFit
-        temp <- pValue(usedCutoff, usedDist, revDirec = usedDirec)
+        temp <- pValueDataFrame(usedCutoff, usedDist, revDirec = usedDirec)
 		names(temp) <- usedFit
-		cutoffChisq <- qchisq(1 - alpha, df=(nullNested@fit - nullParent@fit)[,"df"])
-		powerChi <- mean((altNested@fit - altParent@fit)[,"Chi"] > cutoffChisq)
-		temp <- c("TraditionalChi" = powerChi, temp)		
+		if(all(c("chisq", "df") %in% colnames(nullNested@fit))) {
+			cutoffChisq <- qchisq(1 - alpha, df=(nullNested@fit - nullParent@fit)[,"df"])
+			powerChi <- mean((altNested@fit - altParent@fit)[,"chisq"] > cutoffChisq)
+			temp <- c("TraditionalChi" = powerChi, temp)
+		}
     } else {
         varyingCutoff <- getCutoff(object = nullFit, alpha = alpha, revDirec = FALSE, 
             usedFit = usedFit, predictor = condValue, df = df, predictorVal = "all")
@@ -165,4 +165,20 @@ multipleAllEqualList <- function(obj) {
         }
     }
     return(TRUE)
+} 
+
+multipleAnyEqual <- function(...) {
+    obj <- list(...)
+    multipleAnyEqualList(obj)
+}
+
+multipleAnyEqualList <- function(obj) {
+    for (i in 2:length(obj)) {
+        for (j in 1:(i - 1)) {
+            temp <- isTRUE(all.equal(obj[[i]], obj[[j]]))
+            if (temp) 
+                return(TRUE)
+        }
+    }
+    return(FALSE)
 } 

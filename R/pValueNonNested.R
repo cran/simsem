@@ -8,9 +8,8 @@ pValueNonNested <- function(outMod1, outMod2, dat1Mod1, dat1Mod2, dat2Mod1, dat2
     mod2 <- clean(dat2Mod1, dat2Mod2)
     dat2Mod1 <- mod2[[1]]
     dat2Mod2 <- mod2[[2]]
-    if (is.null(usedFit)) 
-        usedFit <- getKeywords()$usedFit
-    revDirec <- (usedFit %in% c("CFI", "TLI"))  # CFA --> FALSE, RMSEA --> TRUE
+	usedFit <- cleanUsedFit(usedFit, colnames(dat1Mod1@fit), colnames(dat1Mod2@fit), colnames(dat2Mod1@fit), colnames(dat2Mod2@fit))
+    revDirec <- (usedFit %in% getKeywords()$reversedFit)  # CFA --> FALSE, RMSEA --> TRUE
     
     if (!isTRUE(all.equal(unique(dat2Mod1@paramValue), unique(dat2Mod2@paramValue)))) 
         stop("'dat2Mod1' and 'dat2Mod2' are based on different data and cannot be compared, check your random seed")
@@ -57,26 +56,32 @@ pValueNonNested <- function(outMod1, outMod2, dat1Mod1, dat1Mod2, dat2Mod1, dat2
     
     Data1 <- as.data.frame((dat1Mod1@fit - dat1Mod2@fit)[, usedFit])
     Data2 <- as.data.frame((dat2Mod1@fit - dat2Mod2@fit)[, usedFit])
-    
-    cutoff <- extractLavaanFit(outMod1)[usedFit] - extractLavaanFit(outMod2)[usedFit]
+	
+    if(is(outMod1, "MxModel") & is(outMod2, "MxModel")) {
+		cutoff <- semTools:::fitMeasuresMx(outMod1)[usedFit] - semTools:::fitMeasuresMx(outMod2)[usedFit]
+	} else if (is(outMod1, "lavaan") & is(outMod2, "lavaan")) {
+		cutoff <- inspect(outMod1, "fit")[usedFit] - inspect(outMod2, "fit")[usedFit]
+	} else {
+		stop("The 'outMod1' and 'outMod2' arguments must be both lavaan objects or MxModel objects.")
+	}
     
     result1 <- NULL
     result2 <- NULL
     if (any(condition)) {
-        result1 <- pValue(cutoff, Data1, revDirec, x = condValue, xval = predictorVal, 
+        result1 <- pValueDataFrame(cutoff, Data1, revDirec, x = condValue, xval = predictorVal, 
             df = df, asLogical = FALSE)
         names(result1) <- usedFit
-        result2 <- pValue(cutoff, Data2, !revDirec, x = condValue, xval = predictorVal, 
+        result2 <- pValueDataFrame(cutoff, Data2, !revDirec, x = condValue, xval = predictorVal, 
             df = df, asLogical = FALSE)
         names(result2) <- usedFit
     } else {
-        logicalMat1 <- pValue(cutoff, Data1, revDirec, asLogical = TRUE)
+        logicalMat1 <- pValueDataFrame(cutoff, Data1, revDirec, asLogical = TRUE)
         result1 <- apply(logicalMat1, 2, mean, na.rm = TRUE)
         names(result1) <- usedFit
         andRule1 <- mean(apply(logicalMat1, 1, all), na.rm = TRUE)
         orRule1 <- mean(apply(logicalMat1, 1, any), na.rm = TRUE)
         result1 <- c(result1, andRule = andRule1, orRule = orRule1)
-        logicalMat2 <- pValue(cutoff, Data2, !revDirec, asLogical = TRUE)
+        logicalMat2 <- pValueDataFrame(cutoff, Data2, !revDirec, asLogical = TRUE)
         result2 <- apply(logicalMat2, 2, mean, na.rm = TRUE)
         names(result2) <- usedFit
         andRule2 <- mean(apply(logicalMat2, 1, all), na.rm = TRUE)

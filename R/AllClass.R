@@ -15,13 +15,13 @@ setClass("SimSem", representation(pt = "list", dgen = "list", modelType = "chara
 setClass("NullCopula", contains="copula")
 	  
 setClass("SimDataDist", representation(p = "numeric", margins = "character", paramMargins = "list", 
-    keepScale = "logical", reverse = "vector", copula = "copula"), prototype(keepScale = TRUE, reverse = FALSE, copula = new("NullCopula")))
+    keepScale = "logical", reverse = "vector", copula = "copula", skewness = "vector", kurtosis = "vector"), prototype(keepScale = TRUE, reverse = FALSE, copula = new("NullCopula"), skewness = NA, kurtosis = NA))
 
 setClass("SimResult", representation(modelType = "character", nRep = "numeric", coef = "data.frame", 
     se = "data.frame", fit = "data.frame", converged = "vector", paramValue = "data.frame", 
     misspecValue = "data.frame", popFit = "data.frame", FMI1 = "data.frame", FMI2 = "data.frame", 
     stdCoef = "data.frame", seed = "numeric", n = "vector", nobs="data.frame", pmMCAR = "vector", pmMAR = "vector", 
-    extraOut = "list", paramOnly = "logical", labelParam = "vector", timing = "list"))
+    extraOut = "list", paramOnly = "logical", timing = "list"))
 
 setClass("SimMissing", representation(cov = "vector", pmMCAR = "numeric", pmMAR = "numeric", logit = "character", 
     nforms = "numeric", itemGroups = "list", twoMethod = "vector", prAttr = "vector", m = "numeric", chi = "character", 
