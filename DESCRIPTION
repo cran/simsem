@@ -1,20 +1,21 @@
 Package: simsem
 Type: Package
 Title: SIMulated Structural Equation Modeling.
-Version: 0.4-6
-Date: 2012-12-30
+Version: 0.5-0
+Date: 2013-02-10
 Authors@R: c(person("Sunthud", "Pornprasertmanit", role = c("aut",
         "cre"), email = "psunthud@ku.edu"), person("Patrick", "Miller",
         role = "aut", email="patr1ckm@ku.edu"), person("Alexander",
         "Schoemann", role = "aut", email="schoemann@ku.edu"),
         person("Corbin", "Quick", role = "ctb",
-        email="corbinq@gmail.com"))
-Author: Sunthud Pornprasertmanit <psunthud@ku.edu>, Patrick Miller
-        <patr1ckm@ku.edu>, Alexander Schoemann <schoemann@ku.edu>
+        email="corbinq@gmail.com"), person("Terry", "Jorgensen", role =
+        "ctb", email="tdj@ku.edu"))
+Author: Sunthud Pornprasertmanit [aut], Patrick Miller [aut], Alexander
+        Schoemann [aut], Corbin Quick [ctb], Terry Jorgensen [ctb]
 Maintainer: Sunthud Pornprasertmanit <psunthud@ku.edu>
 Depends: R(>= 2.15), methods, lavaan, copula
 Suggests: parallel, Amelia, quantreg, splines, foreign, KernSmooth,
-        semTools
+        semTools, OpenMx
 Description: This package can be used to generate data using the
         structural equation modeling framework. This package is
         tailored to use those simulated data for various purposes, such
@@ -23,6 +24,6 @@ Description: This package can be used to generate data using the
 License: GPL (>= 2)
 LazyLoad: yes
 URL: http://www.simsem.org
-Packaged: 2012-12-31 21:36:53 UTC; sunthud
+Packaged: 2013-02-10 16:58:10 UTC; sunthud
 Repository: CRAN
-Date/Publication: 2012-12-31 22:59:09
+Date/Publication: 2013-02-10 20:17:53

@@ -27,8 +27,7 @@ getPowerFitNonNestedCutoff <- function(dat2Mod1, dat2Mod2, cutoff, usedFit = NUL
 
 getPowerFitNonNestedNullObj <- function(dat2Mod1, dat2Mod2, dat1Mod1, dat1Mod2, usedFit = NULL, alpha = 0.05, revDirec = FALSE, nVal = NULL, pmMCARval = NULL, pmMARval = NULL, df = 0, onetailed = FALSE) {
     
-    if (is.null(usedFit)) 
-        usedFit <- getKeywords()$usedFit
+	usedFit <- cleanUsedFit(usedFit, colnames(dat2Mod1@fit), colnames(dat2Mod2@fit), colnames(dat1Mod1@fit), colnames(dat1Mod2@fit))
     mod1 <- clean(dat2Mod1, dat2Mod2)
     dat2Mod1 <- mod1[[1]]
     dat2Mod2 <- mod1[[2]]
@@ -76,7 +75,7 @@ getPowerFitNonNestedNullObj <- function(dat2Mod1, dat2Mod2, dat1Mod1, dat1Mod2, 
     }
     predictorVal <- predictorVal[condition]
     
-    usedDirec <- (usedFit %in% c("CFI", "TLI"))  # CFA --> TRUE, RMSEA --> FALSE
+    usedDirec <- (usedFit %in% getKeywords()$reversedFit)  # CFA --> TRUE, RMSEA --> FALSE
     if (revDirec) 
         usedDirec <- !usedDirec
     usedDirecInverse <- !usedDirec
@@ -115,11 +114,11 @@ getPowerFitNonNestedNullObj <- function(dat2Mod1, dat2Mod2, dat1Mod1, dat1Mod2, 
     power1 <- rep(NA, length(usedFit))
     power2 <- rep(NA, length(usedFit))
     if (is.null(condValue)) {
-        power2 <- pValue(as.numeric(cutoff1[[1]]), Data2, revDirec = usedDirec)
-        power1 <- pValue(as.numeric(cutoff2[[1]]), Data1, revDirec = !usedDirec)
+        power2 <- pValueDataFrame(as.numeric(cutoff1[[1]]), Data2, revDirec = usedDirec)
+        power1 <- pValueDataFrame(as.numeric(cutoff2[[1]]), Data1, revDirec = !usedDirec)
         if (onetailed == FALSE) {
-            power2 <- power2 + pValue(as.numeric(cutoff1[[2]]), Data2, revDirec = !usedDirec)
-            power1 <- power1 + pValue(as.numeric(cutoff2[[2]]), Data1, revDirec = usedDirec)
+            power2 <- power2 + pValueDataFrame(as.numeric(cutoff1[[2]]), Data2, revDirec = !usedDirec)
+            power1 <- power1 + pValueDataFrame(as.numeric(cutoff2[[2]]), Data1, revDirec = usedDirec)
         }
     } else {
         for (i in 1:length(power2)) {

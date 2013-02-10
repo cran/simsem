@@ -21,10 +21,14 @@ getPowerFit <- function(altObject, cutoff = NULL, nullObject = NULL, revDirec = 
 
 getPowerFitDataFrame <- function(altObject, cutoff, revDirec = FALSE, usedFit = NULL, predictor = NULL, 
 	predictorVal = NULL, condCutoff = TRUE, df = 0) {
-	if (is.null(usedFit)) 
-		usedFit <- getKeywords()$usedFit
-	if (is.null(names(cutoff)) && length(cutoff) == 7) 
+	usedFit <- cleanUsedFit(usedFit, colnames(altObject))
+	if (!is.null(names(cutoff))) {
+		names(cutoff) <- cleanUsedFit(names(cutoff))
+	} else if (is.null(names(cutoff)) && length(cutoff) == 7) { 
 		names(cutoff) <- usedFit
+	} else {
+		stop("Please specify the name of fit indices in the cutoff argument")
+	}
 	common.name <- Reduce(intersect, list(colnames(altObject), names(cutoff), 
 		usedFit))
 	temp <- rep(NA, length(common.name))
@@ -32,14 +36,14 @@ getPowerFitDataFrame <- function(altObject, cutoff, revDirec = FALSE, usedFit = 
 	altObject <- as.data.frame(altObject[, common.name])
 	cutoff <- cutoff[common.name]
 	for (i in 1:length(common.name)) {
-		temp[i] <- pValue(target = as.numeric(cutoff[i]), dist = as.vector(altObject[, 
+		temp[i] <- pValueVector(target = as.numeric(cutoff[i]), dist = as.vector(altObject[, 
 			i]), revDirec = revDirec, x = predictor, xval = predictorVal, df = df, 
 			condCutoff = condCutoff)
 	}
-	if ("TLI" %in% common.name) 
-		temp["TLI"] <- revText(temp["TLI"])
-	if ("CFI" %in% common.name) 
-		temp["CFI"] <- revText(temp["CFI"])
+	revIndex <- which(common.name %in% getKeywords()$reversedFit)
+	for(i in seq_along(revIndex)) {
+		temp[revIndex[i]] <- revText(temp[revIndex[i]])
+	}
 	return(temp)
 }
 
@@ -81,8 +85,7 @@ getPowerFitCutoff <- function(altObject, cutoff, revDirec = FALSE, usedFit = NUL
 }
 
 getPowerFitNullObj <- function(altObject, nullObject, revDirec = FALSE, usedFit = NULL, alpha = 0.05, nVal = NULL, pmMCARval = NULL, pmMARval = NULL, df = 0) {
-	if (is.null(usedFit)) 
-		usedFit <- getKeywords()$usedFit
+	usedFit <- cleanUsedFit(usedFit, colnames(altObject@fit), colnames(nullObject@fit))
 	if(is.null(nullObject)) nullObject <- altObject
 	mod <- clean(altObject, nullObject)
 	altObject <- mod[[1]]
@@ -121,7 +124,7 @@ getPowerFitNullObj <- function(altObject, nullObject, revDirec = FALSE, usedFit 
 	}
 	predictorVal <- predictorVal[condition]
 	
-	usedDirec <- (usedFit %in% c("CFI", "TLI"))  # CFA --> TRUE, RMSEA --> FALSE
+	usedDirec <- (usedFit %in% getKeywords()$reversedFit)  # CFA --> TRUE, RMSEA --> FALSE
 	if (revDirec) 
 		usedDirec <- !usedDirec
 	usedDist <- as.data.frame(altObject@fit[, usedFit])
@@ -130,11 +133,11 @@ getPowerFitNullObj <- function(altObject, nullObject, revDirec = FALSE, usedFit 
 	if (is.null(condValue)) {
 		usedCutoff <- as.vector(t(getCutoff(nullObject, alpha = alpha, usedFit = usedFit)))
 		names(usedCutoff) <- usedFit
-		temp <- pValue(usedCutoff, as.data.frame(usedDist), revDirec = usedDirec)
+		temp <- pValueDataFrame(usedCutoff, as.data.frame(usedDist), revDirec = usedDirec)
 		names(temp) <- usedFit
 		# Find cutoff based on chi-square test
 		cutoffChisq <- qchisq(1 - alpha, df=nullObject@fit[,"df"])
-		powerChi <- mean(altObject@fit[,"Chi"] > cutoffChisq)
+		powerChi <- mean(altObject@fit[,"chisq"] > cutoffChisq)
 		temp <- c("TraditionalChi" = powerChi, temp)
 	} else {
 		varyingCutoff <- getCutoff(object = nullFit, alpha = alpha, revDirec = FALSE, 

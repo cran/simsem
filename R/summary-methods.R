@@ -8,6 +8,7 @@ setMethod("summary", signature = "SimMatrix", definition = function(object) {
     print(object@popParam)
     print("Model misspecification")
     print(object@misspec)
+	print(paste("Symmetric:", object@symmetric))
 })
 
 setMethod("summary", signature = "SimVector", definition = function(object) {
@@ -23,11 +24,16 @@ setMethod("summary", signature = "SimVector", definition = function(object) {
 setMethod("summary", signature = "SimSem", definition = function(object) {
     cat("Model Type\n")
     print(object@modelType)
+    temp <- object@dgen
+	if("PS" %in% names(temp)) temp <- list(temp)
+	if(length(temp) > 1) {
+		cat(paste("Number of groups:", length(temp), "\n"))
+		cat("Grouping Variable Label\n")
+		print(object@groupLab)		
+	}
     cat("========================Lavaan Analysis Model========================\n")
     print(as.data.frame(object@pt))
     cat("========================Data Generation Template========================\n")
-    temp <- object@dgen
-	if("PS" %in% names(temp)) temp <- list(temp)
 	for(i in 1:length(temp)) {
 		cat(paste0("-------- Group ", i, " --------\n"))
 		dgen <- temp[[i]]
@@ -44,7 +50,9 @@ setMethod("summary", signature = "SimSem", definition = function(object) {
 		printIfNotNull(dgen$RPS, "\nRPS: Correlation of Regression.Residual.PSI")
 		printIfNotNull(dgen$VE, "\nVE: Variance of Factor.ETA")
 		printIfNotNull(dgen$AL, "\nAL: Regression Intercept of Factor.ETA")
-		printIfNotNull(dgen$ME, "\nME: mean of Factor.ETA")
+		printIfNotNull(dgen$ME, "\nME: Mean of Factor.ETA")
+		printIfNotNull(dgen$GA, "\nGA: Regression Coefficient of Factor.ETA on Covariates")
+		printIfNotNull(dgen$KA, "\nKA: Regression Coefficient of Indicator.Y on Covariates")
 		cat("--------------------------", "\n")
 	}
 	if(any(!(dim(object@con) == 0))) {
@@ -55,8 +63,7 @@ setMethod("summary", signature = "SimSem", definition = function(object) {
 
 setMethod("summary", signature = "SimResult", definition = function(object, digits = 3, 
     usedFit = NULL, alpha = NULL) {
-    if (is.null(usedFit)) 
-        usedFit <- getKeywords()$usedFit
+	usedFit <- cleanUsedFit(usedFit, colnames(object@fit))
     cat("RESULT OBJECT\n")
     cat("Model Type\n")
     print(object@modelType)
@@ -66,7 +73,7 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
 		print(round(summaryFit(object, alpha = alpha), digits))
 		cat("========= Parameter Estimates and Standard Errors ============\n")
 		print(summaryParam(object, digits=digits))
-		cat("========= Correlation between Fit Indices ============\n")
+		# Correlation between Fit Indices
 		fit <- cleanObj@fit[, usedFit]
 		if (length(unique(object@n)) > 1) 
 			fit <- data.frame(fit, n = cleanObj@n)
@@ -74,7 +81,13 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
 			fit <- data.frame(fit, pmMCAR = cleanObj@pmMCAR)
 		if (length(unique(object@pmMAR)) > 1) 
 			fit <- data.frame(fit, pmMAR = cleanObj@pmMAR)
-		print(round(cor(fit), digits))
+		if(nrow(fit) > 1) {
+			variableCol <- apply(fit, 2, sd, na.rm=TRUE) > 0
+			if(sum(variableCol) >= 2) {
+				cat("========= Correlation between Fit Indices ============\n")
+				print(round(cor(fit[,variableCol]), digits))
+			}
+		}
 		cat("================== Replications =====================\n")
 		cat(paste("Number of replications", "=", object@nRep, "\n"))
 		cat(paste("Number of converged replications", "=", sum(object@converged == 0), "\n"))
@@ -84,6 +97,9 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
 		cat(paste("   3.", "At least one SE were negative or NA", "=", sum(object@converged == 3), "\n"))
 		cat(paste("   4.", "At least one variance estimates were negative", "=", sum(object@converged == 4), "\n"))
 		cat(paste("   5.", "At least one correlation estimates were greater than 1 or less than -1", "=", sum(object@converged == 5), "\n"))
+		if(any(object@converged == 6)) {
+			cat(paste("   6.", "(OpenMx only) Optimal estimates could not be obtained (Status 6)", "=", sum(object@converged == 6), "\n"))
+		}
 		if (length(unique(object@n)) > 1) 
 			cat("NOTE: The sample size is varying.\n")
 		if (length(unique(object@pmMCAR)) > 1) 
@@ -91,8 +107,10 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
 		if (length(unique(object@pmMAR)) > 1) 
 			cat("NOTE: The percent of MAR is varying.\n")
 		if (!is.null(object@paramValue)) {
-			if ((ncol(object@coef) != ncol(object@paramValue)) | ((ncol(object@coef) == 
-				ncol(object@paramValue)) && any(sort(colnames(object@coef)) != sort(colnames(object@paramValue))))) 
+			targetVar <- match(colnames(object@coef), colnames(object@paramValue))
+			targetVar <- targetVar[!is.na(targetVar)]
+			targetVar <- colnames(object@paramValue)[targetVar]
+			if ((ncol(object@coef) != length(targetVar)) || !all(colnames(object@coef) == targetVar)) 
 				cat("NOTE: The data generation model is not the same as the analysis model. See the summary of the population underlying data generation by the summaryPopulation function.\n")
 		}
 	} else {
@@ -163,17 +181,24 @@ setMethod("summary", signature = "SimDataDist", definition = function(object) {
     cat(paste("The number of variables is", object@p, "\n"))
     cat(paste("Keep means and variances of the original scales:", paste(object@keepScale, 
         collapse = " / "), "\n"))
-    cat("The list of distributions:\n")
-    attr <- sapply(object@paramMargins, function(x) paste0(names(x), " = ", x, collapse = ", "))
-    out <- paste0(object@margins, ": ", attr)
-    for (i in 1:object@p) {
-        cat(i, ". ", out[i], "\n", sep = "")
-    }
     cat(paste("Reverse (mirror) distribution:", paste(object@reverse, collapse = " / "), 
         "\n"))
-	if(!is(object@copula, "NullCopula")) {
-		cat(paste("Multivariate Copula:\n"))
-		show(object@copula)
+	if(any(is.na(object@skewness))) {
+		cat("The list of distributions:\n")
+		attr <- sapply(object@paramMargins, function(x) paste0(names(x), " = ", x, collapse = ", "))
+		out <- paste0(object@margins, ": ", attr)
+		for (i in 1:object@p) {
+			cat(i, ". ", out[i], "\n", sep = "")
+		}
+		if(!is(object@copula, "NullCopula")) {
+			cat(paste("Multivariate Copula:\n"))
+			show(object@copula)
+		}
+	} else {
+		cat(paste("Skewness:", paste(object@skewness, 
+			collapse = " / "), "\n"))
+		cat(paste("(Excessive) Kurtosis:", paste(object@kurtosis, 
+			collapse = " / "), "\n"))	
 	}
 }) 
 
@@ -208,3 +233,29 @@ printIfNotNull <- function(object, name = NULL) {
         summaryShort(object)
     }
 } 
+
+cleanUsedFit <- function(txt, ...) {
+	arg <- list(...)
+    if (is.null(txt)) {
+		if("chisq.scaled" %in% arg[[1]]) {
+			txt <- getKeywords()$usedFitScaled
+		} else {
+			txt <- getKeywords()$usedFit
+		}
+	} else {
+		txt <- tolower(txt)
+		txt[txt == "chi"] <- "chisq"
+		txt
+	}
+	if(length(arg) > 0) {
+		txt <- intersection(txt, ...)
+		if(length(txt) == 0) stop("The name of fit indices does not match with the saved fit indices.")
+	}
+	txt
+}
+
+# From R-help mailing list posted by John Fox
+intersection <- function(x, y, ...){
+    if (missing(...)) intersect(x, y)
+	else intersect(x, intersection(y, ...))
+}

@@ -5,9 +5,8 @@ pValueNested <- function(outNested, outParent, simNested, simParent, usedFit = N
     mod <- clean(simNested, simParent)
     simNested <- mod[[1]]
     simParent <- mod[[2]]
-    if (is.null(usedFit)) 
-        usedFit <- getKeywords()$usedFit
-    revDirec <- (usedFit %in% c("CFI", "TLI"))  # CFA --> FALSE, RMSEA --> TRUE
+	usedFit <- cleanUsedFit(usedFit, colnames(simNested@fit), colnames(simParent@fit))
+    revDirec <- (usedFit %in% getKeywords()$reversedFit)  # CFA --> FALSE, RMSEA --> TRUE
     
     if (!isTRUE(all.equal(unique(simNested@paramValue), unique(simParent@paramValue)))) 
         stop("Models are based on different data and cannot be compared, check your random seed")
@@ -46,14 +45,20 @@ pValueNested <- function(outNested, outParent, simNested, simParent, usedFit = N
             predictorVal[2] <- pmMARval)
     }
     predictorVal <- predictorVal[condition]
-    cutoff <- extractLavaanFit(outNested)[usedFit] - extractLavaanFit(outParent)[usedFit]
+	if(is(outNested, "MxModel") & is(outParent, "MxModel")) {
+		cutoff <- semTools:::fitMeasuresMx(outNested)[usedFit] - semTools:::fitMeasuresMx(outParent)[usedFit]
+	} else if (is(outNested, "lavaan") & is(outParent, "lavaan")) {
+		cutoff <- inspect(outNested, "fit")[usedFit] - inspect(outParent, "fit")[usedFit]
+	} else {
+		stop("The 'outNested' and 'outParent' arguments must be both lavaan objects or MxModel objects.")
+	}
     if (any(condition)) {
-        result <- pValue(cutoff, Data, revDirec, x = condValue, xval = predictorVal, 
+        result <- pValueDataFrame(cutoff, Data, revDirec, x = condValue, xval = predictorVal, 
             df = df, asLogical = FALSE)
         names(result) <- usedFit
         return(result)
     } else {
-        logicalMat <- pValue(cutoff, Data, revDirec, asLogical = TRUE)
+        logicalMat <- pValueDataFrame(cutoff, Data, revDirec, asLogical = TRUE)
         result <- apply(logicalMat, 2, mean, na.rm = TRUE)
         names(result) <- usedFit
         andRule <- mean(apply(logicalMat, 1, all), na.rm = TRUE)

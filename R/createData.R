@@ -8,7 +8,8 @@
 ## is generated.
 
 createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist = NULL, 
-    errorDist = NULL, indLab = NULL, modelBoot = FALSE, realData = NULL) {
+    errorDist = NULL, indLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL) {
+	# Assume covData is good
     if (modelBoot) {
         if (sequential) 
             stop("The model-based bootstrap and sequential cannot be used at the same time.")
@@ -19,8 +20,10 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
         if (sum(is.na(realData)) > 0) 
             stop("The model-based bootstrap is not available for data with missingness.")
     }
-    if (is.null(n)) 
-        n <- nrow(realData)
+	
+    if(!is.null(realData)) stopifnot(n == nrow(realData))
+	if(!is.null(covData)) stopifnot(n == nrow(covData))
+
     if (!is.null(errorDist)) {
         if (!is.null(paramSet$BE) && is.null(paramSet$LY)) 
             # Model is path analysis
@@ -43,20 +46,19 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
     } else {
         usedParam <- param
     }
-    
+  
     if (modelBoot) {
         require(lavaan)
-        originalData <- realData
-        if (!is.null(indLab)) 
-            originalData <- originalData[, indLab]
-        implied <- createImpliedMACS(usedParam)
-        S <- cov(originalData)
+		if(!is.null(covData)) realData <- data.frame(covData, realData)
+		covStat <- list(MZ = as.matrix(colMeans(covData)), CZ = cov(covData))
+        implied <- createImpliedMACS(usedParam, covStat)
+        S <- cov(realData)
         Sigma <- implied$CM
-        M <- colMeans(originalData)
+        M <- colMeans(realData)
         M <- matrix(rep(M, n), nrow = n, byrow = TRUE)
         Mu <- implied$M
         Mu <- matrix(rep(Mu, n), nrow = n, byrow = TRUE)
-        z <- (scale(originalData, scale = FALSE) %*% (solve(sqrtSymmetricMatrix(S)) %*% 
+        z <- (scale(realData, scale = FALSE) %*% (solve(sqrtSymmetricMatrix(S)) %*% 
             sqrtSymmetricMatrix(Sigma))) + Mu
         index <- sample(1:n, replace = TRUE)
         Data <- z[index, ]
@@ -64,10 +66,12 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
         if (sequential) {
             if (is.null(usedParam$BE) && !is.null(usedParam$LY)) {
                 # CFA
-                fac <- dataGen(facDist, n, usedParam@AL, usedParam@PS)
-                trueScore <- fac %*% t(usedParam@LY)
-                errorScore <- dataGen(errorDist, n, usedParam@TY, usedParam@TE)
+                fac <- dataGen(facDist, n, usedParam$AL, usedParam$PS)
+				if(!is.null(covData)) fac <- fac + (as.matrix(covData) %*% t(usedParam$GA))
+                trueScore <- fac %*% t(usedParam$LY)
+                errorScore <- dataGen(errorDist, n, usedParam$TY, usedParam$TE)
                 Data <- trueScore + errorScore
+				if(!is.null(covData)) Data <- Data + (as.matrix(covData) %*% t(usedParam$KA))
             } else {
                 usedParam2 <- NULL
                 if (!is.null(usedParam$BE)) {
@@ -80,12 +84,14 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
                 iv <- set[[1]]
                 fac <- dataGen(extractSimDataDist(facDist, iv), n, usedParam2$AL[iv], 
                   usedParam2$PS[iv, iv])
+				if(!is.null(covData)) fac <- fac + (as.matrix(covData) %*% t(usedParam2$GA[iv, ,drop=FALSE]))
                 for (i in 2:length(set)) {
                   dv <- set[[i]]
                   pred <- fac %*% t(usedParam2$BE[dv, iv, drop = FALSE])
                   res <- dataGen(extractSimDataDist(facDist, dv), n, usedParam2$AL[dv], 
                     usedParam2$PS[dv, dv])
                   new <- pred + res
+				  if(!is.null(covData)) new <- new + (as.matrix(covData) %*% t(usedParam2$GA[dv, ,drop=FALSE]))
                   fac <- cbind(fac, new)
                   iv <- c(iv, set[[i]])
                 }
@@ -97,23 +103,40 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
                   trueScore <- fac %*% t(usedParam2$LY)
                   errorScore <- dataGen(errorDist, n, usedParam2$TY, usedParam2$TE)
                   Data <- trueScore + errorScore
+				  if(!is.null(covData)) Data <- Data + (as.matrix(covData) %*% t(usedParam2$KA))
                 }
             }
+			if(!is.null(covData)) Data <- data.frame(covData, Data)
         } else {
-            macs <- createImpliedMACS(usedParam)
-            if (!is.null(indDist)) {
-                Data <- dataGen(indDist, n, macs$M, macs$CM)
-            } else {
-                Data <- mvrnorm(n, macs$M, macs$CM)
-            }
+			if(is.null(covData)) {
+				macs <- createImpliedMACS(usedParam)
+				if (!is.null(indDist)) {
+					Data <- dataGen(indDist, n, macs$M, macs$CM)
+				} else {
+					Data <- mvrnorm(n, macs$M, macs$CM)
+				}
+			} else {
+				macs <- createImpliedConditionalMACS(usedParam, covData)
+				meanMacs <- macs$M
+				names(meanMacs) <- NULL
+				covMacs <- macs$CM
+				Data <- t(sapply(meanMacs, dataGen, dataDist=indDist, n=1, cm=covMacs))
+				Data <- data.frame(covData, Data)
+			}
         }
     }
     varnames <- NULL
     if (!is.null(indLab)) {
         varnames <- indLab
     } else {
-        varnames <- paste0("x", 1:ncol(Data))
-    }
+		ny <- ncol(Data)
+		if(!is.null(covData)) ny <- ny - ncol(covData)
+        varnames <- paste0("y", 1:ny)
+    }  
+	if (!is.null(covData)) {
+		if (is.null(colnames(covData))) colnames(covData) <- paste0("z", 1:ncol(covData))
+		varnames <- c(colnames(covData), varnames)
+	}
     colnames(Data) <- varnames
     Data <- as.data.frame(Data)
     return(Data)
@@ -123,52 +146,56 @@ dataGen <- function(dataDist, n, m, cm) {
     Data <- NULL
     # Check dim(M) dim(CM) dim(copula) are equal
     if (!is.null(dataDist)) {
-        require(copula)
-        if (dataDist@p > 1) {
-            varNotZeros <- diag(cm) != 0
-            dataDist2 <- dataDist
-            cm2 <- cm
-            if (sum(varNotZeros) < dataDist@p) {
-                dataDist2 <- extractSimDataDist(dataDist, which(varNotZeros))
-                cm2 <- cm[which(varNotZeros), which(varNotZeros), drop=FALSE]
-            }
-			for (i in 1:dataDist2@p) {
-				if (dataDist2@reverse[i] == TRUE) {
-				  cm2[i, ] <- -1 * cm2[i, ]
-				  cm2[, i] <- -1 * cm2[, i]
+		if(any(is.na(dataDist@skewness))) {
+			require(copula)
+			if (dataDist@p > 1) {
+				varNotZeros <- diag(cm) != 0
+				dataDist2 <- dataDist
+				cm2 <- cm
+				if (sum(varNotZeros) < dataDist@p) {
+					dataDist2 <- extractSimDataDist(dataDist, which(varNotZeros))
+					cm2 <- cm[which(varNotZeros), which(varNotZeros), drop=FALSE]
 				}
-			}
-			
-			if(!is(dataDist@copula, "NullCopula")) {
-				Mvdc <- mvdc(dataDist@copula, dataDist2@margins, dataDist2@paramMargins)
-				Data <- CopSEM(Mvdc, cm2, nw = n * 100, np = n)
-			} else {
-				r <- cov2cor(as.matrix(cm2))
-				listR <- r[lower.tri(diag(dataDist2@p))]
-				CopNorm <- ellipCopula(family = "normal", dim = dataDist2@p, dispstr = "un", 
-					param = listR)
+				for (i in 1:dataDist2@p) {
+					if (dataDist2@reverse[i] == TRUE) {
+					  cm2[i, ] <- -1 * cm2[i, ]
+					  cm2[, i] <- -1 * cm2[, i]
+					}
+				}
 				
-				Mvdc <- mvdc(CopNorm, dataDist2@margins, dataDist2@paramMargins)
-				Data <- rMvdc(n, Mvdc)
+				if(!is(dataDist@copula, "NullCopula")) {
+					Mvdc <- mvdc(dataDist@copula, dataDist2@margins, dataDist2@paramMargins)
+					Data <- CopSEM(Mvdc, cm2, nw = n * 100, np = n)
+				} else {
+					r <- cov2cor(as.matrix(cm2))
+					listR <- r[lower.tri(diag(dataDist2@p))]
+					CopNorm <- ellipCopula(family = "normal", dim = dataDist2@p, dispstr = "un", 
+						param = listR)
+					
+					Mvdc <- mvdc(CopNorm, dataDist2@margins, dataDist2@paramMargins)
+					Data <- rMvdc(n, Mvdc)
+				}
+				if (sum(varNotZeros) < dataDist@p) {
+					varZeros <- diag(cm) == 0
+					constant <- matrix(0, n, sum(varZeros))
+					Data <- data.frame(Data, constant)
+					Data[, c(which(varNotZeros), which(varZeros))] <- Data
+				}
+			} else if (dataDist@p == 1) {
+				if (as.matrix(cm)[1, 1] == 0) {
+					Data <- rep(m[1], n)
+				} else {
+					# Data <- as.matrix(run(dataDist@dist[[1]], n = n))
+					temp <- c(list(get(paste0("r", dataDist@margins[[1]]))), dataDist@paramMargins[[1]], 
+					  list(n = n))
+					Data <- as.matrix(eval(as.call(temp)))
+				}
+			} else {
+				stop("when creating a data distribution object, p cannot equal 0.")
 			}
-            if (sum(varNotZeros) < dataDist@p) {
-                varZeros <- diag(cm) == 0
-                constant <- matrix(0, n, sum(varZeros))
-                Data <- data.frame(Data, constant)
-                Data[, c(which(varNotZeros), which(varZeros))] <- Data
-            }
-        } else if (dataDist@p == 1) {
-            if (as.matrix(cm)[1, 1] == 0) {
-                Data <- rep(m[1], n)
-            } else {
-                # Data <- as.matrix(run(dataDist@dist[[1]], n = n))
-                temp <- c(list(get(paste0("r", dataDist@margins[[1]]))), dataDist@paramMargins[[1]], 
-                  list(n = n))
-                Data <- as.matrix(eval(as.call(temp)))
-            }
-        } else {
-            stop("when creating a data distribution object, p cannot equal 0.")
-        }
+		} else {
+			Data <- lavaanValeMaurelli1983(n = n, COR = cov2cor(cm), skewness = dataDist@skewness, kurtosis = dataDist@kurtosis)
+		}
         for (i in 1:dataDist@p) {
             if (dataDist@reverse[i] == TRUE) {
                 meanOld <- mean(Data[, i])
@@ -203,7 +230,8 @@ extractSimDataDist <- function(object, pos) {
 		copula@dimension <- 2L
 	} 
     return(new("SimDataDist", margins = object@margins[pos], paramMargins = object@paramMargins[pos], 
-        p = length(pos), keepScale = object@keepScale[pos], reverse = object@reverse[pos], copula = copula))
+        p = length(pos), keepScale = object@keepScale[pos], reverse = object@reverse[pos], copula = copula, 
+		skewness = object@skewness[pos], kurtosis = object@kurtosis[pos]))
 } 
 
 # The function from Mair et al. (2012)

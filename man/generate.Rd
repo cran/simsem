@@ -4,18 +4,18 @@
 	Generate data using SimSem template
 }
 \description{
-	This function can be used to generate random data based on the \code{\linkS4class{SimSem}} template. Some notable features include fine control of misspecification and misspecification optimization, as well as the ability to generate non-normal data. When using \emph{simsem} for simulations, this function is used internally to generate data in the function \code{sim}, and can be helpful for debugging, or in creating data for use with other analysis programs. 
+	This function can be used to generate random data based on the 1. \code{\linkS4class{SimSem}} objects created with the \code{\link{model}} function, 2. \code{lavaan} script or parameter tables, or 3. an \code{MxModel} object from the \code{OpenMx} package. Some notable features include fine control of misspecification and misspecification optimization (for \code{\linkS4class{SimSem}} only), as well as the ability to generate non-normal data. When using \emph{simsem} for simulations, this function is used internally to generate data in the function \code{sim}, and can be helpful for debugging, or in creating data for use with other analysis programs. 
 }
 \usage{
 generate(model, n, maxDraw=50, misfitBounds=NULL, misfitType="f0",
 	averageNumMisspec=FALSE, optMisfit=NULL, optDraws=50, 
 	createOrder = c(1, 2, 3), indDist=NULL, sequential=FALSE,	
 	facDist=NULL, errorDist=NULL, indLab=NULL, modelBoot=FALSE, 
-	realData=NULL, params=FALSE)
+	realData=NULL, covData=NULL, params=FALSE, group = NULL, ...)
 }
 \arguments{
   \item{model}{
-	A \code{\linkS4class{SimSem}} object. 
+	A \code{\linkS4class{SimSem}} object, a \code{lavaan} script or parameter tables, or an \code{MxModel} object from the \code{OpenMx} package
 }
   \item{n}{
 	Integer of sample size.
@@ -62,17 +62,28 @@ generate(model, n, maxDraw=50, misfitBounds=NULL, misfitType="f0",
   \item{realData}{ 
 	A data.frame containing real data. The data generated will follow the distribution of this data set.
 }
+  \item{covData}{ 
+	A data.frame containing covariate data, which can have any distributions. This argument is required when users specify \code{GA} or \code{KA} matrices in the model template (\code{\linkS4class{SimSem}}).
+}
   \item{params}{ 
 	If \code{TRUE}, return the parameters drawn along with the generated data set. Default is \code{FALSE}.
+}
+  \item{group}{ 
+	The label of the grouping variable
+}
+  \item{\dots}{ 
+	Additional arguments for the \code{\link[lavaan]{simulateData}} function. 
 }
 }
 \value{
 	A data.frame containing simulated data from the data generation template. A variable "group" is appended indicating group membership.
 }
 \details{
-This function will use \code{\link[MASS]{mvrnorm}} function ito create data from model implied covariance matrix if the data distribution object (\code{\linkS4class{SimDataDist}}) is not specified. It the data distribution object is specified, the Gaussian copula model is used. See \code{\linkS4class{SimDataDist}} for further details. For the model-based bootstrap, the transformation proposed by Yung & Bentler (1996) is used. This procedure is the expansion from the Bollen and Stine (1992) bootstrap including a mean structure. The model-implied mean vector and covariance matrix with trivial misspecification will be used in the model-based bootstrap if \code{misspec} is specified. See page 133 of Bollen and Stine (1992) for a reference. 
+If the \code{lavaan} script or the \code{MxModel} are provided, the model-implied covariance matrix will be computed and internally use \code{\link{createData}} function to generate data. The data-generation method is based on whether the \code{indDist} argument is specified. For the \code{lavaan} script, the code for data generation is modified from the \code{\link[lavaan]{simulateData}} function.
 
-Internally, parameters are first drawn, and data is then created from these parameters. Both of these steps are available via the \code{\link{draw}} and \code{\link{createData}} functions respectively.
+If the \code{\linkS4class{SimSem}} object is specified, it will check whether there are any random parameters or trivial misspecification in the model. If so, real or misspecified parameters are drawn via the \code{\link{draw}} function. Next, there are two methods to generate data. First, the function will calculate the model-implied covariance matrix (including model misspecification) and generate data similar to the \code{lavaan} script or the \code{MxModel} object. The second method is referred to as the \code{sequential} method, which can be used by specifying the \code{sequential} argument as \code{TRUE}. This function will create data based on the chain of equations in structural equation modeling such that independent variables and errors are generated and added as dependent variables and the dependent variables will be treated as independent variables in the next equation. For example, in the model with factor A and B are independent variables, factor C are dependent variables, factors A and B are generated first. Then, residual in factor C are created and added with factors A and B. This current step has all factor scores. Then, measurement errors are created and added with factor scores to create indicator scores. During each step, independent variables and errors can be nonnormal by setting \code{facDist} or \code{errorDist} arguments. The data generation in each step is based on the \code{\link{createData}} function.
+
+For the model-based bootstrap (providing the \code{realData} argument), the transformation proposed by Yung & Bentler (1996) is used. This procedure is the expansion from the Bollen and Stine (1992) bootstrap including a mean structure. The model-implied mean vector and covariance matrix with trivial misspecification will be used in the model-based bootstrap if \code{misspec} is specified. See page 133 of Bollen and Stine (1992) for a reference. 
 }
 \references{
 Bollen, K. A., & Stine, R. A. (1992). Bootstrapping goodness-of-fit measures in structural equation models. \emph{Sociological Methods and Research, 21,} 205-229.
@@ -80,7 +91,7 @@ Bollen, K. A., & Stine, R. A. (1992). Bootstrapping goodness-of-fit measures in 
 Yung, Y.-F., & Bentler, P. M. (1996). Bootstrapping techniques in analysis of mean and covariance structures. In G. A. Marcoulides & R. E. Schumacker (Eds.), \emph{Advanced structural equation modeling: Issues and techniques} (pp. 195-226). Mahwah, NJ: Erlbaum.
 }
 \author{	
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu}), Patrick Miller (Univeristy of Notre Dame; \email{pmille13@nd.edu})
+    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu}), Patrick Miller (Univeristy of Notre Dame; \email{pmille13@nd.edu}), the data generation code for lavaan script is modifed from the \code{simulateData} function in \code{lavaan} written by Yves Rosseel
 }
 
 \seealso{
@@ -105,6 +116,6 @@ VY <- bind(rep(NA,6),2)
 
 CFA.Model <- model(LY = LY, RPS = RPS, RTE = RTE, modelType = "CFA")
 
-dat <- generate(CFA.Model,200)
+dat <- generate(CFA.Model, 200)
 }
 

@@ -4,10 +4,44 @@
 
 generate <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "f0", 
     averageNumMisspec = FALSE, optMisfit = NULL, optDraws = 50, createOrder = c(1, 2, 3), indDist = NULL, sequential = FALSE, 
-    facDist = NULL, errorDist = NULL, indLab = NULL, modelBoot = FALSE, realData = NULL, 
+    facDist = NULL, errorDist = NULL, indLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL, 
+    params = FALSE, group = NULL, ...) {
+	if(is(model, "SimSem")) {
+		if(!is.null(group)) model@groupLab <- group
+		data <- generateSimSem(model = model, n = n, maxDraw = maxDraw, misfitBounds = misfitBounds, misfitType = misfitType, 
+			averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, createOrder = createOrder, indDist = indDist, sequential = sequential, 
+			facDist = facDist, errorDist = errorDist, indLab = indLab, modelBoot = modelBoot, realData = realData, covData = covData, 
+			params = params)
+	} else if (is(model, "MxModel")) {
+		data <- generateMx(object = model, n = n, indDist = indDist, groupLab = group, covData = covData)
+	} else {
+		if(is.character(model)) {
+			model <- list(model = model)
+		} else if (is.partable(model)) {
+			model <- list(model = model)
+		} else if (is.lavaancall(model)) {
+			# Intentionally leave it blank
+		} else if (is(model, "lavaan")) {
+			temp <- model@ParTable
+			temp$ustart <- model@Fit@est
+			model <- list(model = temp)
+		} else {
+			stop("Please specify an appropriate object for the 'model' argument: simsem model template, lavaan script, lavaan parameter table, OpenMx object, or list of options for the 'simulateData' function.")
+		}
+		model$sample.nobs <- n
+		model$indDist <- indDist
+		model <- c(model, list(...))
+		data <- do.call("lavaanSimulateData", model) 
+	}
+	return(data)
+}
+
+generateSimSem <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "f0", 
+    averageNumMisspec = FALSE, optMisfit = NULL, optDraws = 50, createOrder = c(1, 2, 3), indDist = NULL, sequential = FALSE, 
+    facDist = NULL, errorDist = NULL, indLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL, 
     params = FALSE) {
     if (is.null(indLab)) {
-        if (model@modelType == "Path") {
+        if (model@modelType == "path") {
             indLab <- unique(model@pt$lhs)
         } else {
             indLab <- unique(model@pt$rhs[model@pt$op == "=~"])
@@ -28,21 +62,67 @@ generate <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "
     }
     
 	if(ngroups > 1 && length(n) == 1) n <- rep(n, ngroups)
-    
-    draws <- draw(model, maxDraw = maxDraw, misfitBounds = misfitBounds, misfitType = misfitType, 
-        averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, createOrder = createOrder)
+
+	covLab <- unique(model@pt$lhs[model@pt$op == "~1" & model@pt$exo == 1])
+	if(!is.null(realData)) {
+		if((ngroups > 1) && !(model@groupLab %in% colnames(realData))) stop(paste0("The ", model@groupLab, " varaible does not in the realData argument"))	
+		if(!is.null(covData) && (length(covLab) > 0)) {
+			usedCol <- covLab
+			if(ngroups > 1) usedCol <- c(usedCol, model@groupLab)
+			covData <- realData[,usedCol]
+		}
+		realData <- realData[,setdiff(colnames(realData), covLab)]
+	}
 	
-	if (model@modelType == "SEM") {
-		draws <- changeScaleSEM(draws, model)
+	if(length(covLab) > 0) {
+		if(is.null(covData)) stop("The covariate data must be specified.")
+		if(ngroups > 1) covLab <- c(covLab, model@groupLab)
+		covData <- covData[,covLab, drop=FALSE]		
+		if(ncol(covData) != length(covLab)) stop(paste0("The covariate data must contain the following variable names: ", paste(covLab, collapse = ", ")))
+		if(any(is.na(covData))) stop("The covariate data must not have missing variables.")
+		indLab <- setdiff(indLab, covLab)
+	} else {
+		if(!is.null(covData)) {
+			warnings("CONFLICT: The model template does not have any covariates but the covaraite data are specified. The covaraite data are ignored.")
+			covData <- NULL
+		}
+	}
+    draws <- draw(model, maxDraw = maxDraw, misfitBounds = misfitBounds, misfitType = misfitType, 
+        averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, createOrder = createOrder, covData = covData)
+	
+	# The data-generation model and analysis model may have different parameterization (residual factor varaince != 1) so the change of scale is needed
+	if (model@modelType %in% c("cfa", "sem")) {
+		draws <- changeScaleFactor(draws, model)
 	}	
 	
-    datal <- mapply(FUN = createData, draws, indDist, facDist, errorDist, n = n, MoreArgs = list(
-        sequential = sequential, modelBoot = modelBoot, realData = realData, indLab = indLab), 
+	realDataGroup <- rep(list(NULL), ngroups)
+	covDataGroup <- rep(list(NULL), ngroups)
+	if (ngroups > 1) {
+		if(!is.null(realData)) {
+			realDataGroup <- split(realData, realData[,model@groupLab])
+			nrealData <- sapply(realDataGroup, nrow)
+			if(any(nrealData != n)) stop("CONFLICT: The group sizes specified in realData and the 'n' argument are not equal.")
+		}
+		if(!is.null(covData)) {
+			covDataGroup <- split(covData[,setdiff(covLab, model@groupLab), drop=FALSE], covData[,model@groupLab])
+			ncovData <- sapply(covDataGroup, nrow)
+			if(any(ncovData != n)) stop("CONFLICT: The group sizes specified in covData and the 'n' argument are not equal.")
+		}
+	} else {
+		if(!is.null(realData)) realDataGroup <- list(realData)
+		if(!is.null(covData)) covDataGroup <- list(covData)
+	}
+	# realData must be separated into different groups
+	# covariates must be separated into different groups
+	# realData must not contain covariates
+    datal <- mapply(FUN = createData, draws, indDist, facDist, errorDist, n = n, realData = realDataGroup, 
+		covData = covDataGroup, MoreArgs = list(sequential = sequential, modelBoot = modelBoot, indLab = indLab), 
         SIMPLIFY = FALSE)
     data <- do.call("rbind", datal)
-    data <- cbind(data, group = rep(1:ngroups, n))
-    colnames(data)[ncol(data)] <- model@groupLab
-    
+	if(ngroups > 1) {
+		data <- cbind(data, group = rep(1:ngroups, n))
+		colnames(data)[ncol(data)] <- model@groupLab
+    }
     if (params) {
         return(list(data = data, psl = draws))
     } else {
@@ -51,12 +131,24 @@ generate <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "
     
 }
 
-popMisfitParams <- function(psl, df = NULL) {
+popMisfitParams <- function(psl, df = NULL, covData = NULL) {
     ngroups <- length(psl)
     real <- lapply(psl, "[[", 1)
     realmis <- lapply(psl, "[[", 2)
-    macsreal <- lapply(real, createImpliedMACS)
-    macsmis <- lapply(realmis, createImpliedMACS)
+	covStat <- rep(list(NULL), ngroups)
+	if (!is.null(covData)) {
+		if(ngroups == 1) {
+			covStat[[1]] <- list(MZ = as.matrix(colMeans(covData)), CZ = cov(covData))
+		} else {
+			groupCov <- covData[,ncol(covData)]
+			targetDat <- covData[,-ncol(covData)]
+			for(i in 1:ngroups) {
+				covStat[[i]] <- list(MZ = as.matrix(colMeans(targetDat[groupCov == i,])), CZ = cov(targetDat[groupCov == i,]))
+			}
+		}
+	}
+    macsreal <- mapply(createImpliedMACS, real, covStat, SIMPLIFY = FALSE)
+    macsmis <- mapply(createImpliedMACS, realmis, covStat, SIMPLIFY = FALSE)
     misfit <- popMisfitMACS(paramM = lapply(macsreal, "[[", 1), paramCM = lapply(macsreal, 
         "[[", 2), misspecM = lapply(macsmis, "[[", 1), misspecCM = lapply(macsmis, 
         "[[", 2), fit.measures = "all", dfParam = df)
@@ -64,7 +156,7 @@ popMisfitParams <- function(psl, df = NULL) {
 } 
 
 		
-changeScaleSEM <- function(drawResult, gen) {
+changeScaleFactor <- function(drawResult, gen) {
 	# Find the scales that are based on fixed factor 
 	dgen <- gen@dgen
 	pt <- gen@pt
@@ -157,13 +249,15 @@ changeScaleSEM <- function(drawResult, gen) {
 	for(g in 1:ngroup) {
 		param[[g]]$LY <- param[[g]]$LY %*% solve(scale[[g]])
 		param[[g]]$PS <- scale[[g]] %*% param[[g]]$PS %*% scale[[g]]
-		param[[g]]$BE <- scale[[g]] %*% param[[g]]$BE %*% solve(scale[[g]])
+		if(!is.null(param[[g]]$BE)) param[[g]]$BE <- scale[[g]] %*% param[[g]]$BE %*% solve(scale[[g]])
 		param[[g]]$AL <- scale[[g]] %*% param[[g]]$AL
+		if(!is.null(param[[g]]$GA)) param[[g]]$GA <- scale[[g]] %*% param[[g]]$GA
 		if(!is.null(misspec[[g]])) {
 			misspec[[g]]$LY <- misspec[[g]]$LY %*% solve(scale[[g]])
 			misspec[[g]]$PS <- scale[[g]] %*% misspec[[g]]$PS %*% scale[[g]]
-			misspec[[g]]$BE <- scale[[g]] %*% misspec[[g]]$BE %*% solve(scale[[g]])
+			if(!is.null(misspec[[g]]$BE)) misspec[[g]]$BE <- scale[[g]] %*% misspec[[g]]$BE %*% solve(scale[[g]])
 			misspec[[g]]$AL <- scale[[g]] %*% misspec[[g]]$AL		
+			if(!is.null(misspec[[g]]$GA)) misspec[[g]]$GA <- scale[[g]] %*% misspec[[g]]$GA
 		}
 	}
 	for(g in 1:ngroup) {
@@ -332,3 +426,423 @@ semMACS <- function(param) {
         }
 		return(list(implied.mean, implied.covariance))
 }
+
+# The script below is modified from lavaan. 
+
+lavaanSimulateData <- function(
+                         # user-specified model
+                         model           = NULL,
+                         model.type      = "sem",
+
+                         # model modifiers
+                         meanstructure   = FALSE,
+                         int.ov.free     = TRUE,
+                         int.lv.free     = FALSE,
+                         fixed.x         = FALSE,
+                         orthogonal      = FALSE,
+                         std.lv          = TRUE,
+
+                         auto.fix.first  = FALSE,
+                         auto.fix.single = FALSE,
+                         auto.var        = TRUE,
+                         auto.cov.lv.x   = TRUE,
+                         auto.cov.y      = TRUE,
+                         ...,
+
+                         # data properties
+                         sample.nobs     = 500L,
+                         ov.var          = NULL,
+                         group.label     = paste("G", 1:ngroups, sep=""),
+                         skewness        = NULL,
+                         kurtosis        = NULL,
+
+                         # control
+                         seed = NULL,
+                         empirical = FALSE,
+
+                         return.type = "data.frame",
+                         return.fit = FALSE,
+						 indDist = NULL
+                        )
+{
+    if(!is.null(seed)) set.seed(seed)
+    if(!exists(".Random.seed", envir = .GlobalEnv))
+        runif(1)               # initialize the RNG if necessary
+    RNGstate <- .Random.seed
+	
+	if(!is.list(model)) {
+    # lavaanify
+		lav <- lavaanify(model = model, 
+						 meanstructure=meanstructure,
+						 int.ov.free=int.ov.free, 
+						 int.lv.free=int.lv.free,
+						 fixed.x=fixed.x,
+						 orthogonal=orthogonal,
+						 std.lv=std.lv,
+						 auto.fix.first=auto.fix.first,
+						 auto.fix.single=auto.fix.single,
+						 auto.var=auto.var,
+						 auto.cov.lv.x=auto.cov.lv.x,
+						 auto.cov.y=auto.cov.y,
+						 ngroups=length(sample.nobs))
+	} else {
+		lav <- model
+	}
+	
+    # fill in any remaining NA values (needed for unstandardize)
+    # 1 for variances and factor loadings, 0 otherwise
+    idx <- which(lav$op == "=~" & is.na(lav$ustart))
+    if(length(idx) > 0L) lav$ustart[idx] <- 1.0
+    idx <- which(lav$op == "~~" & is.na(lav$ustart) & lav$lhs == lav$rhs)
+    if(length(idx) > 0L) lav$ustart[idx] <- 1.0
+    idx <- which(is.na(lav$ustart))
+    if(length(idx) > 0L) lav$ustart[idx] <- 0.0
+
+
+    # unstandardize 
+    if(!is.null(ov.var)) {
+        # FIXME: if ov.var is named, check the order of the elements
+
+        # 1. unstandardize observed variables
+        lav$ustart <- lavaan:::unstandardize.est.ov(partable=lav, ov.var=ov.var)
+
+        # 2. unstandardized latent variables
+    }
+
+
+    # basic fit (ignoring thresholds
+    ord.idx <- which(lav$op == "|")
+    if(length(ord.idx) > 0L) {
+        lav.no_ord <- lav[-ord.idx,]
+    } else {
+        lav.no_ord <- lav
+    }
+    fit <- lavaan(model=lav.no_ord, sample.nobs=sample.nobs,  ...)
+
+    # the model-implied moments for the population
+    Sigma.hat <- lavaan:::computeSigmaHat(fit@Model)
+       Mu.hat <- lavaan:::computeMuHat(fit@Model)
+	   
+	# To be deleted if the Mu.hat is not wrong anymore and the lavaan version changed to 0.5-12
+	for(g in seq_along(Sigma.hat)) {
+		ov.ord <- lavaan:::vnames(lav, type="ov.ord", group=g)
+		ov.names <- lavaan:::vnames(lav, type="ov", group=g)
+		for(o in ov.ord) {
+			o.idx <- which(o == ov.names)
+			tv.idx <- which(lav$op == "~*~" & lav$lhs == o)
+			if(length(tv.idx) == 0) {
+				th.idx <- which(lav$op == "~~" & lav$lhs == o & lav$user == 1)
+				if(length(th.idx) == 0) {
+					tv <- 1
+				} else {
+					tv <- NULL
+				}
+			} else {
+				tv <- lav$ustart[tv.idx]
+			}
+			if(!is.null(tv)) Sigma.hat[[g]][o.idx, o.idx] <- tv
+		}
+	}
+    # ngroups
+    ngroups <- length(sample.nobs)
+
+    # prepare 
+    X <- vector("list", length=ngroups)
+    out <- vector("list", length=ngroups)
+
+	if(!is.null(indDist) && !is.list(indDist)) {
+		indDist <- rep(list(indDist), ngroups)
+	}
+	
+    for(g in 1:ngroups) {
+        X[[g]] <- dataGen(dataDist = indDist[[g]], n = sample.nobs[g], m = Mu.hat[[g]], cm = Sigma.hat[[g]])
+
+        # any categorical variables?
+        if(return.type == "data.frame") X[[g]] <- as.data.frame(X[[g]])
+
+        ov.ord <- lavaan:::vnames(lav, type="ov.ord", group=g)
+        if(length(ov.ord) > 0L) {
+            ov.names <- lavaan:::vnames(lav, type="ov", group=g)
+            # use thresholds to cut -- after standardization?
+            for(o in ov.ord) {
+                o.idx <- which(o == ov.names)
+                th.idx <- which(lav$op == "|" & lav$lhs == o)
+                th.val <- c(-Inf,sort(lav$ustart[th.idx]),+Inf)
+                # scale!!
+                xz <- scale(X[[g]][,o.idx])
+				lev <- 1:(length(setdiff(th.val, NA))-1)
+                X[[g]][,o.idx] <- factor(as.numeric(cut(xz, th.val)), levels= lev, labels=lev, exclude=NA, ordered=TRUE)
+            }
+        }
+
+    }
+
+    if(return.type == "matrix") {
+        if(ngroups == 1L) {
+            return(X[[1L]])
+        } else {
+            return(X)
+        }
+
+    } else if (return.type == "data.frame") {
+        Data <- X[[1L]]
+
+        # if multiple groups, add group column
+        if(ngroups > 1L) {
+            for(g in 2:ngroups) {
+                Data <- rbind(Data, X[[g]])
+            }
+            Data$group <- rep(1:ngroups, times=sample.nobs)
+        }
+        var.names <- lavaan:::vnames(fit@ParTable, type="ov", group=1L)
+        if(ngroups > 1L) var.names <- c(var.names, "group")
+        names(Data) <- var.names
+        if(return.fit) {
+            attr(Data, "fit") <- fit
+        }
+        return(Data)
+
+    } else if (return.type == "cov") {
+        if(ngroups == 1L) {
+            return(cov(X[[1L]]))
+        } else {
+            cov.list <- lapply(X, cov)
+            return(cov.list)
+        }
+    }
+}
+
+fleishman1978_abcd <- function(skewness, kurtosis) {
+	system.function <- function(x, skewness, kurtosis) {
+		b.=x[1L]; c.=x[2L]; d.=x[3L]
+		eq1 <- b.^2 + 6*b.*d. + 2*c.^2 + 15*d.^2 - 1
+		eq2 <- 2*c.*(b.^2 + 24*b.*d. + 105*d.^2 + 2) - skewness
+		eq3 <- 24*(b.*d. + c.^2*(1 + b.^2 + 28*b.*d.) +
+				   d.^2*(12 + 48*b.*d. + 141*c.^2 + 225*d.^2)) - kurtosis
+		eq <- c(eq1,eq2,eq3)
+		sum(eq^2) ## SS
+	}
+
+	out <- nlminb(start=c(1,0,0), objective=system.function,
+				  scale=10,
+				  control=list(trace=0),
+				  skewness=skewness, kurtosis=kurtosis)
+	if(out$convergence != 0) warning("no convergence")
+	b. <- out$par[1L]; c. <- out$par[2L]; d. <- out$par[3L]; a. <- -c.
+	c(a.,b.,c.,d.)
+}
+	
+lavaanValeMaurelli1983 <- function(n=100L, COR, skewness, kurtosis) {
+
+    getICOV <- function(b1, c1, d1, b2, c2, d2, R) {
+        objectiveFunction <- function(x, b1, c1, d1, b2, c2, d2, R) {
+            rho=x[1L]
+            eq <- rho*(b1*b2 + 3*b1*d2 + 3*d1*b2 + 9*d1*d2) +
+                  rho^2*(2*c1*c2) + rho^3*(6*d1*d2) - R
+            eq^2
+        }
+
+        out <- nlminb(start=R, objective=objectiveFunction,
+                      scale=10, control=list(trace=0),
+                      b1=b1, c1=c1, d1=d1, b2=b2, c2=c2, d2=d2, R=R)
+        if(out$convergence != 0) warning("no convergence")
+        rho <- out$par[1L]
+        rho
+    }
+
+    # number of variables
+    nvar <- ncol(COR)
+    # check skewness
+    if(length(skewness) == nvar) {
+        SK <- skewness
+    } else if(length(skewness == 1L)) {
+        SK <- rep(skewness, nvar)
+    } else {
+        stop("skewness has wrong length")
+    }
+
+    if(length(kurtosis) == nvar) {
+        KU <- kurtosis
+    } else if(length(skewness == 1L)) {
+        KU <- rep(kurtosis, nvar)
+    } else {
+        stop("kurtosis has wrong length")
+    }
+
+    # create Fleishman table
+    FTable <- matrix(0, nvar, 4L)
+    for(i in 1:nvar) {
+        FTable[i,] <- fleishman1978_abcd(skewness=SK[i], kurtosis=KU[i])
+    }
+
+    # compute intermediate correlations between all pairs
+    ICOR <- diag(nvar)
+	if(nvar > 1) {
+		for(j in 1:(nvar-1L)) {
+			for(i in (j+1):nvar) {
+				if(COR[i,j] == 0) next
+				ICOR[i,j] <- ICOR[j,i] <-
+					getICOV(FTable[i,2], FTable[i,3], FTable[i,4],
+							FTable[j,2], FTable[j,3], FTable[j,4], R=COR[i,j])
+			}
+		}
+	}
+    # generate Z ## FIXME: replace by rmvnorm once we use that package
+    X <- Z <- mvrnorm(n=n, mu=rep(0,nvar), Sigma=ICOR)
+
+    # transform Z using Fleishman constants
+    for(i in 1:nvar) {
+        X[,i] <- FTable[i,1L] + FTable[i,2L]*Z[,i] + FTable[i,3L]*Z[,i]^2 +
+                 FTable[i,4L]*Z[,i]^3
+    }
+
+    X
+}
+		
+HeadrickSawilowsky1999 <- function(n=100L, COR, skewness, kurtosis) {
+    # number of variables
+    p <- ncol(COR)
+    # check skewness
+    if(length(skewness) == p) {
+        SK <- skewness
+    } else if(length(skewness == 1L)) {
+        SK <- rep(skewness, p)
+    } else {
+        stop("skewness has wrong length")
+    }
+
+    if(length(kurtosis) == p) {
+        KU <- kurtosis
+    } else if(length(skewness == 1L)) {
+        KU <- rep(kurtosis, p)
+    } else {
+        stop("kurtosis has wrong length")
+    }
+
+    FTable <- matrix(0, p, 4L)
+    for(i in 1:p) {
+        FTable[i,] <- fleishman1978_abcd(skewness=SK[i], kurtosis=KU[i])
+    }
+	if (p == 2) {
+		targetR <- COR[lower.tri(COR)]
+		objFUN2 <- function(x, va, vb, vd, COR) {
+			r <- x^2
+			eq <- r*(vb[1]*vb[2] + 3*vb[2]*vd[1] + 3*vb[1]*vd[2] + 9*vd[1]*vd[2] + 2*va[1]*va[2]*r + 6*vd[1]*vd[2]*(r^2)) - COR
+			eq^2	
+		}
+		out <- nlminb(start=targetR, objective=objFUN2,
+                      scale=10, control=list(trace=0),
+                      va=FTable[,1], vb=FTable[,2], vd=FTable[,4], COR=targetR)		  
+        if(out$convergence != 0) warning("no convergence")
+        vr <- out$par[1L]
+		z1 <- rnorm(n, 0, 1)
+		edata <- sapply(1:2, function(x) rnorm(n, 0, 1))
+		tarvar <- z1 %*% matrix(vr, nrow=1, ncol=2)
+		transformvr <- edata %*% diag(sqrt(1 - vr^2), 2)
+		Z <- tarvar + transformvr
+	} else if (p == 3) {
+		rowindex <- row(diag(p))[lower.tri(diag(p))]
+		colindex <- col(diag(p))[lower.tri(diag(p))]
+		targetR <- COR[lower.tri(COR)]
+		findStartA <- function(x, targetR, rowindex, colindex) {
+			eq <- x[rowindex] * x[colindex] - targetR
+			sum(eq^2)
+		}
+		start <- nlminb(start=runif(3, -1, 1), objective=findStartA,
+                      scale=10, control=list(trace=0),
+                      targetR=targetR, rowindex = rowindex, colindex = colindex)
+		if(start$convergence != 0) warning("no convergence")
+		objFUN3 <- function(x, va, vb, vd, targetR, rowindex, colindex) {
+			vr <- x
+			tempr1 <- vr[rowindex]
+			tempr2 <- vr[colindex]
+			tempb1 <- vb[rowindex]
+			tempb2 <- vb[colindex]
+			tempa1 <- va[rowindex]
+			tempa2 <- va[colindex]
+			tempd1 <- vd[rowindex]
+			tempd2 <- vd[colindex]
+			rprod <- tempr1 * tempr2
+			eq <- rprod*(tempb1 * tempb2 + 3*tempb2*tempd1 + 3*tempb1*tempd2 + 9*tempd2*tempd2 + 2*tempa1*tempa2*(rprod^2) + 6*tempd1*tempd2*(rprod^4)) - targetR
+			sum(eq^2)
+		}
+		out <- nlminb(start=start$par, objective=objFUN3,
+                      scale=10, control=list(trace=0),
+                      va=FTable[,1], vb=FTable[,2], vd=FTable[,4], targetR=targetR, rowindex = rowindex, colindex = colindex)
+					  
+        if(out$convergence != 0) warning("no convergence")
+		z1 <- rnorm(n, 0, 1)
+		vr <- out$par
+		edata <- sapply(1:p, function(x) rnorm(n, 0, 1))
+		tarvar <- z1 %*% matrix(vr, nrow=1)
+		transformvr <- edata %*% diag(sqrt(1 - vr^2))
+		Z <- tarvar + transformvr
+	} else if (p > 3) {
+		rowindex <- row(diag(p))[lower.tri(diag(p))]
+		colindex <- col(diag(p))[lower.tri(diag(p))]
+		targetR <- COR[lower.tri(COR)]
+		halfp <- ceiling(p/2)
+		mat <- matrix(FALSE, p, p)
+		# Arbitrarily pick first half from Z1 and second half from Z2
+		mat[1:halfp, 1:halfp] <- TRUE
+		mat[(halfp + 1):p, (halfp + 1):p] <- TRUE
+		# This method does not make sense in this logic. In two or three variables, only one Z is needed. In four variables, two Zs are needed. However, in more than four variables, only two Zs are needed. If the number of Zs is doubled from two to four variables, isn't it doubled when from four to eight variables.
+		ctrlvec <- mat[lower.tri(mat)]
+		
+		findStartB <- function(x, targetR, rowindex, colindex, p, ctrlvec) {
+			r0 <- rep(x[1], length(targetR))
+			r0[ctrlvec] <- 1
+			vr <- x[2:(p+1)]
+			eq <- r0 * vr[rowindex] * vr[colindex] - targetR
+			sum(eq^2)
+		}
+		#r0 is modeled instead of the product of different t which does not make sense to use it.
+		start <- nlminb(start=runif(p+1, -1, 1), objective=findStartB,
+                      scale=10, control=list(trace=0),
+                      targetR=targetR, rowindex = rowindex, colindex = colindex, p = p, ctrlvec = ctrlvec, lower=-1, upper=1)
+		if(start$convergence != 0) warning("no convergence")
+		
+		objFUN4 <- function(x, va, vb, vd, targetR, rowindex, colindex, p, ctrlvec) {
+			r0 <- rep(x[1], length(targetR))
+			r0[ctrlvec] <- 1
+			vr <- x[2:(p+1)]
+			tempr1 <- vr[rowindex]
+			tempr2 <- vr[colindex]
+			tempb1 <- vb[rowindex]
+			tempb2 <- vb[colindex]
+			tempa1 <- va[rowindex]
+			tempa2 <- va[colindex]
+			tempd1 <- vd[rowindex]
+			tempd2 <- vd[colindex]
+			rprod <- tempr1 * tempr2 * r0
+			eq <- rprod*(tempb1 * tempb2 + 3*tempb2*tempd1 + 3*tempb1*tempd2 + 9*tempd2*tempd2 + 2*tempa1*tempa2*(rprod^2) + 6*tempd1*tempd2*(rprod^4)) - targetR
+			sum(eq^2)
+		}
+		# optimize COR (y) directly
+		out <- nlminb(start=start$par, objective=objFUN4,
+                      scale=10, control=list(trace=0),
+                      va=FTable[,1], vb=FTable[,2], vd=FTable[,4], targetR=targetR, rowindex = rowindex, colindex = colindex, p = p, ctrlvec = ctrlvec, lower=-1, upper=1)
+					  
+        if(out$convergence != 0) warning("no convergence")
+		z1 <- rnorm(n, 0, 1)
+		v <- rnorm(n, 0, 1)
+		r0 <- out$par[1]
+		vr <- out$par[2:(p+1)]
+		edata <- sapply(1:p, function(x) rnorm(n, 0, 1))
+		z2 <- r0 * z1 + sqrt(1 - r0^2) * v
+		classify <- c(rep(TRUE, halfp), rep(FALSE, p - halfp))
+		classify <- rbind(classify, !classify) * rbind(vr, vr)
+		tarvar <- cbind(z1, z2) %*% classify
+		transformvr <- edata %*% diag(sqrt(1 - vr^2))
+		Z <- tarvar + transformvr
+	}
+	X <- Z
+    # transform Z using Fleishman constants
+    for(i in 1:p) {
+        X[,i] <- FTable[i,1L] + FTable[i,2L]*Z[,i] + FTable[i,3L]*Z[,i]^2 +
+                 FTable[i,4L]*Z[,i]^3
+    }
+
+    X
+}
+
