@@ -1,7 +1,7 @@
 # getCutoff: This function will find a cutoff of each fit index based on a
 # priori alpha level from sampling distributions of fit indices
 
-setMethod("getCutoff", signature(object = "data.frame"), definition = function(object, 
+getCutoffDataFrame <- function(object, 
     alpha, revDirec = FALSE, usedFit = NULL, predictor = NULL, predictorVal = NULL, 
     df = 0) {
 	usedFit <- cleanUsedFit(usedFit, colnames(object))
@@ -20,9 +20,9 @@ setMethod("getCutoff", signature(object = "data.frame"), definition = function(o
 	}
     temp <- data.frame(temp)
     return(temp)
-})
+}
 
-setMethod("getCutoff", signature(object = "SimResult"), definition = function(object, 
+getCutoff <- function(object, 
     alpha, revDirec = FALSE, usedFit = NULL, nVal = NULL, pmMCARval = NULL, pmMARval = NULL, 
     df = 0) {
     if (is.null(nVal) || is.na(nVal)) 
@@ -33,7 +33,15 @@ setMethod("getCutoff", signature(object = "SimResult"), definition = function(ob
         pmMARval <- NULL
     object <- clean(object)
     Data <- as.data.frame(object@fit)
-    condition <- c(length(unique(object@pmMCAR)) > 1, length(unique(object@pmMAR)) > 
+    condValuePredictorVal <- getCondValuePredictorVal(object, nVal, pmMCARval, pmMARval)
+    
+    output <- getCutoffDataFrame(Data, alpha, revDirec, usedFit, predictor = condValuePredictorVal[[1]], predictorVal = condValuePredictorVal[[2]], 
+        df = df)
+    return(output)
+}
+
+getCondValuePredictorVal <- function(object, nVal = NULL, pmMCARval = NULL, pmMARval = NULL) {
+	condition <- c(length(unique(object@pmMCAR)) > 1, length(unique(object@pmMAR)) > 
         1, length(unique(object@n)) > 1)
     condValue <- cbind(object@pmMCAR, object@pmMAR, object@n)
     colnames(condValue) <- c("Percent MCAR", "Percent MAR", "N")
@@ -54,20 +62,17 @@ setMethod("getCutoff", signature(object = "SimResult"), definition = function(ob
             predictorVal[2] <- pmMARval)
     }
     predictorVal <- predictorVal[condition]
-    
-    output <- getCutoff(Data, alpha, revDirec, usedFit, predictor = condValue, predictorVal = predictorVal, 
-        df = df)
-    return(output)
-})
+	list(condValue, predictorVal)
+}
 
-setMethod("getCutoff", signature(object = "matrix"), definition = function(object, 
-    alpha, revDirec = FALSE, usedFit = NULL, predictor = NULL, predictorVal = NULL, 
-    df = 0) {
-    object <- as.data.frame(object)
-    output <- getCutoff(object, alpha, revDirec, usedFit, predictor = predictor, 
-        predictorVal = predictorVal, df = df)
-    return(output)
-}) 
+# setMethod("getCutoff", signature(object = "matrix"), definition = function(object, 
+    # alpha, revDirec = FALSE, usedFit = NULL, predictor = NULL, predictorVal = NULL, 
+    # df = 0) {
+    # object <- as.data.frame(object)
+    # output <- getCutoff(object, alpha, revDirec, usedFit, predictor = predictor, 
+        # predictorVal = predictorVal, df = df)
+    # return(output)
+# }) 
 
 ## getCondQtile: Get a quantile of a variable given values of predictors
 

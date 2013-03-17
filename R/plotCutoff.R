@@ -1,9 +1,10 @@
 # plotCutoff: This function will plot sampling distributions of fit indices
 # with vertical lines of cutoffs
 
-setMethod("plotCutoff", signature(object = "data.frame"), definition = function(object, 
+
+plotCutoffDataFrame <- function(object, 
     cutoff = NULL, revDirec = FALSE, usedFit = NULL, vector1 = NULL, vector2 = NULL, 
-    nameVector1 = NULL, nameVector2 = NULL, alpha = NULL, useContour = T, cutoff2 = NULL) {
+    nameVector1 = NULL, nameVector2 = NULL, alpha = NULL, useContour = TRUE, cutoff2 = NULL) {
 	usedFit <- cleanUsedFit(usedFit, colnames(object))
     object <- as.data.frame(object[, usedFit])
 	if(!is.null(cutoff)) {
@@ -54,10 +55,10 @@ setMethod("plotCutoff", signature(object = "data.frame"), definition = function(
     }
     if (ncol(object) > 1) 
         par(obj)
-})
+}
 
-setMethod("plotCutoff", signature(object = "SimResult"), definition = function(object, 
-    alpha = NULL, revDirec = FALSE, usedFit = NULL, useContour = T) {
+plotCutoff <-  function(object, 
+    alpha = NULL, revDirec = FALSE, usedFit = NULL, useContour = TRUE) {
     object <- clean(object)
     cutoff <- NULL
     Data <- as.data.frame(object@fit)
@@ -70,23 +71,23 @@ setMethod("plotCutoff", signature(object = "SimResult"), definition = function(o
         if (revDirec) 
             alpha <- 1 - alpha
         if (all(!condition)) 
-            cutoff <- getCutoff(Data, alpha)
+            cutoff <- getCutoffDataFrame(Data, alpha)
     }
     if (sum(condition) == 0) {
-        plotCutoff(Data, cutoff, revDirec, usedFit)
+        plotCutoffDataFrame(Data, cutoff, revDirec, usedFit)
     } else if (sum(condition) == 1) {
-        plotCutoff(Data, cutoff, revDirec, usedFit, vector1 = condValue[, condition], 
+        plotCutoffDataFrame(Data, cutoff, revDirec, usedFit, vector1 = condValue[, condition], 
             nameVector1 = colnames(condValue)[condition], alpha = alpha)
     } else if (sum(condition) == 2) {
         condValue <- condValue[, condition]
-        plotCutoff(Data, cutoff, revDirec, usedFit, vector1 = condValue[, 1], vector2 = condValue[, 
+        plotCutoffDataFrame(Data, cutoff, revDirec, usedFit, vector1 = condValue[, 1], vector2 = condValue[, 
             2], nameVector1 = colnames(condValue)[1], nameVector2 = colnames(condValue)[2], 
             alpha = alpha, useContour = useContour)
     } else {
         stop("This function cannot plot when there more than two dimensions of varying parameters")
     }
     
-}) 
+}
 
 # plot3DQtile: Build a persepctive plot or contour plot of a quantile of
 # predicted values
