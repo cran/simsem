@@ -40,7 +40,7 @@ usedFit=NULL, prior=1)
 	The likelihood ratio (Bayes Factor) in preference of Model 1 to Model 2. If the value is greater than 1, Model 1 is preferred. If the value is less than 1, Model 2 is preferred.
 }
 \author{
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu})
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu})
 }
 \seealso{
 	\code{\linkS4class{SimResult}} for a detail of simResult
@@ -58,7 +58,8 @@ loading[8:11, 3] <- NA
 path.A <- matrix(0, 3, 3)
 path.A[2, 1] <- NA
 path.A[3, 2] <- NA
-model.A <- estmodel(LY=loading, BE=path.A, modelType="SEM", indLab=c(paste("x", 1:3, sep=""), paste("y", 1:8, sep="")))
+model.A <- estmodel(LY=loading, BE=path.A, modelType="SEM", indLab=c(paste("x", 1:3, sep=""), 
+	paste("y", 1:8, sep="")))
 
 out.A <- analyze(model.A, PoliticalDemocracy)
 
@@ -66,7 +67,8 @@ out.A <- analyze(model.A, PoliticalDemocracy)
 path.B <- matrix(0, 3, 3)
 path.B[3, 1] <- NA
 path.B[2, 3] <- NA
-model.B <- estmodel(LY=loading, BE=path.B, modelType="SEM", indLab=c(paste("x", 1:3, sep=""), paste("y", 1:8, sep="")))
+model.B <- estmodel(LY=loading, BE=path.B, modelType="SEM", indLab=c(paste("x", 1:3, sep=""), 
+	paste("y", 1:8, sep="")))
 
 out.B <- analyze(model.B, PoliticalDemocracy)
 

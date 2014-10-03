@@ -56,10 +56,14 @@ summaryParam(object, alpha = 0.05, detail = FALSE, improper = FALSE,
 			for fixed parameters and (\code{Average.SE} - \code{SD.Bias})/\code{SD.Bias} 
 			for random parameters. 	Hoogland and Boomsma (1998) proposed that 0.10 is the acceptable level.
 			This option will be available when \code{detail=TRUE}
+		\item \code{Not Cover Below:} The percentage of (1-alpha)\% confidence interval does not cover the parameter and the parameter is below the confidence interval.
+		\item \code{Not Cover Above:} The percentage of (1-alpha)\% confidence interval does not cover the parameter and the parameter is above the confidence interval.
+		\item \code{Average CI Width:} The average of (1-alpha)\% confidence interval width across replications.
+		\item \code{SD CI Width:} The standard deviation of (1-alpha)\% confidence interval width across replications.
 	}
 }
 \author{
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu})
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu})
 }
 \references{
 Collins, L. M., Schafer, J. L., & Kam, C. M. (2001). A comparison of inclusive and restrictive strategies in modern missing data procedures. \emph{Psychological Methods, 6}, 330-351.

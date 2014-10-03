@@ -10,8 +10,8 @@
 generate(model, n, maxDraw=50, misfitBounds=NULL, misfitType="f0",
 	averageNumMisspec=FALSE, optMisfit=NULL, optDraws=50, 
 	createOrder = c(1, 2, 3), indDist=NULL, sequential=FALSE,	
-	facDist=NULL, errorDist=NULL, indLab=NULL, modelBoot=FALSE, 
-	realData=NULL, covData=NULL, params=FALSE, group = NULL, 
+	facDist=NULL, errorDist=NULL, saveLatentVar = FALSE, indLab=NULL, 
+	modelBoot=FALSE, realData=NULL, covData=NULL, params=FALSE, group = NULL, 
 	empirical = FALSE, ...)
 }
 \arguments{
@@ -54,6 +54,9 @@ generate(model, n, maxDraw=50, misfitBounds=NULL, misfitType="f0",
   \item{errorDist}{ 
 	An object or list of objects of type \code{SimDataDist} indicating the distribution of errors. If a single \code{SimDataDist} is specified, each error will be genrated with that distribution.
 }
+  \item{saveLatentVar}{ 
+	If \code{TRUE}, the total latent variable scores, residual latent variable scores, and measurement error scores are also provided as the \code{"latentVar"} attribute of the generated data by the following line: \code{attr(generatedData, "latentVar")}. The \code{sequential} argument must be \code{TRUE} in order to use this option.
+}
   \item{indLab}{ 
 	A vector of indicator labels. When not specified, the variable names are \code{x1, x2, ... xN}.
 }
@@ -95,7 +98,7 @@ Bollen, K. A., & Stine, R. A. (1992). Bootstrapping goodness-of-fit measures in 
 Yung, Y.-F., & Bentler, P. M. (1996). Bootstrapping techniques in analysis of mean and covariance structures. In G. A. Marcoulides & R. E. Schumacker (Eds.), \emph{Advanced structural equation modeling: Issues and techniques} (pp. 195-226). Mahwah, NJ: Erlbaum.
 }
 \author{	
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu}), Patrick Miller (Univeristy of Notre Dame; \email{pmille13@nd.edu}), the data generation code for lavaan script is modifed from the \code{simulateData} function in \code{lavaan} written by Yves Rosseel
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu}), Patrick Miller (University of Notre Dame; \email{pmille13@nd.edu}), the data generation code for lavaan script is modifed from the \code{simulateData} function in \code{lavaan} written by Yves Rosseel
 }
 
 \seealso{
@@ -121,5 +124,11 @@ VY <- bind(rep(NA,6),2)
 CFA.Model <- model(LY = LY, RPS = RPS, RTE = RTE, modelType = "CFA")
 
 dat <- generate(CFA.Model, 200)
+
+# Get the latent variable scores
+
+dat2 <- generate(CFA.Model, 20, sequential = TRUE, saveLatentVar = TRUE)
+dat2
+attr(dat2, "latentVar")
 }
 

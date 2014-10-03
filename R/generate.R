@@ -4,13 +4,13 @@
 
 generate <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "f0", 
     averageNumMisspec = FALSE, optMisfit = NULL, optDraws = 50, createOrder = c(1, 2, 3), indDist = NULL, sequential = FALSE, 
-    facDist = NULL, errorDist = NULL, indLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL, 
+    facDist = NULL, errorDist = NULL, saveLatentVar = FALSE, indLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL, 
     params = FALSE, group = NULL, empirical = FALSE, ...) {
 	if(is(model, "SimSem")) {
 		if(!is.null(group)) model@groupLab <- group
 		data <- generateSimSem(model = model, n = n, maxDraw = maxDraw, misfitBounds = misfitBounds, misfitType = misfitType, 
 			averageNumMisspec = averageNumMisspec, optMisfit = optMisfit, optDraws = optDraws, createOrder = createOrder, indDist = indDist, sequential = sequential, 
-			facDist = facDist, errorDist = errorDist, indLab = indLab, modelBoot = modelBoot, realData = realData, covData = covData, 
+			facDist = facDist, errorDist = errorDist, saveLatentVar = saveLatentVar, indLab = indLab, modelBoot = modelBoot, realData = realData, covData = covData, 
 			params = params, empirical = empirical)
 	} else if (is(model, "MxModel")) {
 		data <- generateMx(object = model, n = n, indDist = indDist, groupLab = group, covData = covData, empirical = empirical)
@@ -39,7 +39,7 @@ generate <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "
 
 generateSimSem <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "f0", 
     averageNumMisspec = FALSE, optMisfit = NULL, optDraws = 50, createOrder = c(1, 2, 3), indDist = NULL, sequential = FALSE, 
-    facDist = NULL, errorDist = NULL, indLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL, 
+    facDist = NULL, errorDist = NULL, saveLatentVar = FALSE, indLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL, 
     params = FALSE, empirical = FALSE) {
     if (is.null(indLab)) {
         if (model@modelType == "path") {
@@ -48,6 +48,8 @@ generateSimSem <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitTy
             indLab <- unique(model@pt$rhs[model@pt$op == "=~"])
         }
     }
+	facLab <- NULL
+	if(model@modelType != "path") facLab <- unique(model@pt$lhs[model@pt$op == "=~"])
     free <- max(model@pt$free)
     ngroups <- max(model@pt$group)
     
@@ -117,13 +119,27 @@ generateSimSem <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitTy
 	# covariates must be separated into different groups
 	# realData must not contain covariates
     datal <- mapply(FUN = createData, draws, indDist, facDist, errorDist, n = n, realData = realDataGroup, 
-		covData = covDataGroup, MoreArgs = list(sequential = sequential, modelBoot = modelBoot, indLab = indLab, empirical = empirical), 
+		covData = covDataGroup, MoreArgs = list(sequential = sequential, saveLatentVar = saveLatentVar, modelBoot = modelBoot, indLab = indLab, facLab = facLab, empirical = empirical), 
         SIMPLIFY = FALSE)
-    data <- do.call("rbind", datal)
+	data <- NULL
+	extra <- NULL
+	if(saveLatentVar) {
+		data <- lapply(datal, "[[", 1)
+		extra <- lapply(datal, "[[", 2)
+		data <- do.call("rbind", data)
+		extra <- do.call("rbind.fill", extra)
+	} else {
+		data <- do.call("rbind", datal)
+	}
 	if(ngroups > 1) {
 		data <- cbind(data, group = rep(1:ngroups, n))
 		colnames(data)[ncol(data)] <- model@groupLab
+		if(saveLatentVar) {
+			extra <- cbind(extra, group = rep(1:ngroups, n))
+			colnames(extra)[ncol(extra)] <- model@groupLab
+		}
     }
+	if(saveLatentVar) attr(data, "latentVar") <- extra
     if (params) {
         return(list(data = data, psl = draws))
     } else {
@@ -268,152 +284,6 @@ changeScaleFactor <- function(drawResult, gen) {
 	return(drawResult)
 }
 
-test.changeScaleSEM <- function() {
-	loading <- matrix(0, 8, 3)
-	loading[1:3, 1] <- NA
-	loading[4:6, 2] <- NA
-	loading[7:8, 3] <- "con1"
-	loading.start <- matrix("", 8, 3)
-	loading.start[1:3, 1] <- 0.7
-	loading.start[4:6, 2] <- 0.7
-	loading.start[7:8, 3] <- "rnorm(1,0.6,0.05)"
-	LY <- bind(loading, loading.start)
-
-	RTE <- binds(diag(8))
-
-	factor.cor <- diag(3)
-	factor.cor[1, 2] <- factor.cor[2, 1] <- NA
-	RPS <- binds(factor.cor, 0.5)
-
-	path <- matrix(0, 3, 3)
-	path[3, 1:2] <- NA
-	path.start <- matrix(0, 3, 3)
-	path.start[3, 1] <- "rnorm(1,0.6,0.05)"
-	path.start[3, 2] <- "runif(1,0.3,0.5)"
-	BE <- bind(path, path.start)
-
-	SEM.model <- model(BE=BE, LY=LY, RPS=RPS, RTE=RTE, modelType="SEM")
-
-	dat <- generate(SEM.model, n=300)
-
-	# Manifest variable approach
-
-
-
-	loading <- matrix(0, 8, 3)
-	loading[1:3, 1] <- c(1, "con1", "con1")
-	loading[4:6, 2] <- c(1, "con2", "con2")
-	loading[7:8, 3] <- c(1, 1)
-	loading.start <- matrix("", 8, 3)
-	LY <- bind(loading, 0.9)
-
-	RTE <- binds(diag(8))
-
-	factor.cor <- diag(3)
-	factor.cor[1, 2] <- factor.cor[2, 1] <- NA
-	RPS <- binds(factor.cor, 0.5)
-
-	VPS <- bind(rep(NA, 3), c(1.3, 1.6, 0.9))
-
-	path <- matrix(0, 3, 3)
-	path[3, 1:2] <- NA
-	path.start <- matrix(0, 3, 3)
-	path.start[3, 1] <- "rnorm(1,0.6,0.05)"
-	path.start[3, 2] <- "runif(1,0.3,0.5)"
-	BE <- bind(path, path.start)
-
-	VTE <- bind(rep(NA, 8), 1)
-	SEM.model <- model(BE=BE, LY=LY, RPS=RPS, RTE=RTE, VPS=VPS, VTE=VTE, modelType="SEM")
-
-	dat <- generate(SEM.model, n=300)
-
-	# Mixed approach
-
-	loading <- matrix(0, 8, 3)
-	loading[1:3, 1] <- c(1, "con1", "con1")
-	loading[4:6, 2] <- c(1, "con2", "con2")
-	loading[7:8, 3] <- c("con3", "con3")
-	loading.start <- matrix("", 8, 3)
-	LY <- bind(loading, 0.7)
-
-	RTE <- binds(diag(8))
-
-	factor.cor <- diag(3)
-	factor.cor[1, 2] <- factor.cor[2, 1] <- NA
-	RPS <- binds(factor.cor, 0.5)
-
-	VPS <- bind(c(NA, NA, 0.9), c(1.3, 0.7, ""))
-
-	path <- matrix(0, 3, 3)
-	path[3, 1:2] <- NA
-	path.start <- matrix(0, 3, 3)
-	path.start[3, 1] <- "rnorm(1,0.6,0.05)"
-	path.start[3, 2] <- "runif(1,0.3,0.5)"
-	BE <- bind(path, path.start)
-
-	VTE <- bind(rep(NA, 8), 1)
-	SEM.model <- model(BE=BE, LY=LY, RPS=RPS, RTE=RTE, VPS=VPS, VTE=VTE, modelType="SEM")
-
-	dat <- generate(SEM.model, n=300)
-	
-	
-	# Constrain
-
-
-	loading <- matrix(0, 9, 3)
-	loading[1:3, 1] <- c("con1", "con2", "con3")
-	loading[4:6, 2] <- c("con1", "con2", "con3")
-	loading[7:9, 3] <- c("con1", "con2", "con3")
-	LY <- bind(loading, 0.7)
-
-	RTE <- binds(diag(9))
-
-	RPS <- binds(diag(3))
-
-	VPS <- bind(c(1, NA, NA), c("", 0.75, 0.75))
-
-	path <- matrix(0, 3, 3)
-	path[2, 1] <- NA
-	path[3, 2] <- NA
-	BE <- bind(path, 0.5)
-
-	VTE <- bind(rep(NA, 9), 1)
-	SEM.model <- model(BE=BE, LY=LY, RPS=RPS, RTE=RTE, VPS=VPS, VTE=VTE, modelType="SEM")
-
-	dat <- generate(SEM.model, n=300)
-
-	# Constrain Group
-
-	loading.in <- matrix(0, 9, 3)
-	loading.in[1:3, 1] <- paste0("load", 1:3)
-	loading.in[4:6, 2] <- paste0("load", 4:6)
-	loading.in[7:9, 3] <- paste0("load", 7:9)
-	LY.in <- bind(loading.in, 0.7)
-
-	RPS <- binds(diag(3))
-
-	RTE <- binds(diag(9))
-
-	VTE <- bind(rep(NA, 9), 0.51)
-
-	TY.in <- bind(paste0("int", 1:9), 0)
-
-	VPS1 <- bind(rep(1, 3))
-	VPS2 <- bind(rep(NA, 3), c(1.1, 1.2, 1.3))
-
-	AL1 <- bind(rep(0, 3))
-	AL2 <- bind(rep(NA, 3), c(-0.5, 0.2, 0.3))
-
-	path <- matrix(0, 3, 3)
-	path[2, 1] <- NA
-	path[3, 2] <- NA
-	BE <- bind(path, 0.5)
-
-	strong <- model(LY = LY.in, RPS = RPS, VPS=list(VPS1, VPS2), RTE = RTE, VTE=VTE, TY=TY.in, AL=list(AL1, AL2), BE=list(BE,BE), ngroups=2, modelType = "SEM")
-
-	dat <- generate(strong,200)
-}
-
 semMACS <- function(param) {
 	ID <- matrix(0, nrow(param$PS), nrow(param$PS))
     diag(ID) <- 1
@@ -469,10 +339,9 @@ lavaanSimulateData <- function(
     if(!exists(".Random.seed", envir = .GlobalEnv))
         runif(1) # initialize the RNG if necessary
     RNGstate <- .Random.seed
-	
 	if(!is.list(model)) {
 		# lavaanify
-		lav <- lavaanify(model = model,
+		lav <- lavaan::lavaanify(model = model,
 						 meanstructure=meanstructure,
 						 int.ov.free=int.ov.free,
 						 int.lv.free=int.lv.free,
@@ -521,21 +390,49 @@ lavaanSimulateData <- function(
         # here??
         lav2 <- lav
         ngroups <- max(lav$group)
-        ov.names <- lavaan:::vnames(lav, "ov")
-        ov.var.idx <- which(lav$op == "~~" & lav$lhs %in% ov.names &
+        ov.names <- lavaan::lavNames(lav, "ov")
+        ov.nox <- lavaan::lavNames(lav, "ov.nox")
+        lv.names <- lavaan::lavNames(lav, "lv")
+        lv.y <- lavaan::lavNames(lav, "lv.y")
+        ov.var.idx <- which(lav$op == "~~" & lav$lhs %in% ov.nox &
                             lav$rhs == lav$lhs)
-        if(any(lav2$user[ov.var.idx] > 0L)) {
+        lv.var.idx <- which(lav$op == "~~" & lav$lhs %in% lv.y &
+                            lav$rhs == lav$lhs)
+        if(any(lav2$user[c(ov.var.idx, lv.var.idx)] > 0L)) {
             warning("lavaan WARNING: if residual variances are specified, please use standardized=FALSE")
         }
-        lav2$ustart[ov.var.idx] <- 0.0
-        fit <- lavaan(model=lav2, sample.nobs=sample.nobs, ...)
-        Sigma.hat <- lavaan:::computeSigmaHat(fit@Model)
-        for(g in 1:ngroups) {
-            var.group <- which(lav$op == "~~" & lav$lhs %in% ov.names &
-                               lav$rhs == lav$lhs & lav$group == g)
-            lav$ustart[var.group] <- 1 - diag(Sigma.hat[[g]])
+        lav2$ustart[c(ov.var.idx,lv.var.idx)] <- 0.0
+        fit <- lavaan::lavaan(model=lav2, sample.nobs=sample.nobs, ...)
+        Sigma.hat <- fitted(fit)$cov
+        ETA <- inspect(fit, "cov.lv")
+
+        if(debug) {
+            cat("Sigma.hat:\n"); print(Sigma.hat)
+            cat("Eta:\n"); print(ETA)
+        }
+		
+        # standardize LV
+        if(length(lv.y) > 0L) {
+            for(g in 1:ngroups) {
+                var.group <- which(lav$op == "~~" & lav$lhs %in% lv.y &
+                                   lav$rhs == lav$lhs & lav$group == g)
+                eta.idx <- match(lv.y, lv.names)
+                lav$ustart[var.group] <- 1 - diag(ETA[[g]])[eta.idx]
+            }
         }
 
+		lav3 <- lav
+		lav3$ustart[c(ov.var.idx)] <- 0.0
+		fit3 <- lavaan::lavaan(model=lav3, sample.nobs=sample.nobs, ...)
+        Sigma.hat3 <- fitted(fit3)$cov
+
+		for(g in 1:ngroups) {
+            var.group <- which(lav$op == "~~" & lav$lhs %in% ov.nox &
+                               lav$rhs == lav$lhs & lav$group == g)
+            ov.idx <- match(ov.nox, ov.names)
+            lav$ustart[var.group] <- 1 - diag(Sigma.hat3[[g]])[ov.idx]
+        }
+		
         if(debug) {
             cat("after standardisation lav\n")
             print(as.data.frame(lav))
@@ -547,7 +444,7 @@ lavaanSimulateData <- function(
         # FIXME: if ov.var is named, check the order of the elements
 
         # 1. unstandardize observed variables
-        lav$ustart <- lavaan:::unstandardize.est.ov(partable=lav, ov.var=ov.var)
+        lav$ustart <- temp.unstandardize.est.ov(partable=lav, ov.var=ov.var)
 
         # 2. unstandardized latent variables
 
@@ -559,23 +456,39 @@ lavaanSimulateData <- function(
 
 
     # fit the model without data
-    fit <- lavaan(model=lav, sample.nobs=sample.nobs, ...)
-
+    fit <- lavaan::lavaan(model=lav, sample.nobs=sample.nobs, ...)
+	
     # the model-implied moments for the population
-    Sigma.hat <- lavaan:::computeSigmaHat(fit@Model)
-       Mu.hat <- lavaan:::computeMuHat(fit@Model)
+   # ngroups
+    ngroups <- length(sample.nobs)
+	if(ngroups == 1) {
+		Sigma.hat <- list(fitted(fit)$cov)
+		   Mu.hat <- list(fitted(fit)$mean)
+	} else {
+		Sigma.hat <- lapply(fitted(fit), "[[", "cov")
+		   Mu.hat <- lapply(fitted(fit), "[[", "mean")
+	}
     if(fit@Model@categorical) {
-       TH <- lavaan:::computeTH(fit@Model)
+		if(ngroups == 1) {
+			TH <- list(fitted(fit)$th)
+		} else {
+			TH <- lapply(fitted(fit), "[[", "th")
+	   }
     }
-
+	
     if(debug) {
         print(Sigma.hat)
         print(Mu.hat)
         if(exists("TH")) print(TH)
     }
 	   
-   # ngroups
-    ngroups <- length(sample.nobs)
+	# if(ngroups == 1) {
+		# Sigma.hat <- list(Sigma.hat)
+		# Mu.hat <- list(Mu.hat)
+		# if(fit@Model@categorical) {
+		   # TH <- list(TH)
+		# }		
+	# }
 
     # prepare
     X <- vector("list", length=ngroups)
@@ -590,9 +503,9 @@ lavaanSimulateData <- function(
 		X[[g]] <- as.data.frame(X[[g]])
 
 		# any categorical variables?
-        ov.ord <- lavaan:::vnames(lav, type="ov.ord", group=g)
+        ov.ord <- lavaan::lavNames(lav, type="ov.ord", group=g)
         if(length(ov.ord) > 0L) {
-            ov.names <- lavaan:::vnames(lav, type="ov", group=g)
+            ov.names <- lavaan::lavNames(lav, type="ov", group=g)
             # use thresholds to cut
             for(o in ov.ord) {
                 o.idx <- which(o == ov.names)
@@ -614,7 +527,7 @@ lavaanSimulateData <- function(
 		}
 		Data$group <- rep(1:ngroups, times=sample.nobs)
 	}
-	var.names <- lavaan:::vnames(fit@ParTable, type="ov", group=1L)
+	var.names <- lavaan::lavNames(fit@ParTable, type="ov", group=1L)
 	if(ngroups > 1L) var.names <- c(var.names, "group")
 	names(Data) <- var.names
 	if(return.fit) {
@@ -857,3 +770,289 @@ HeadrickSawilowsky1999 <- function(n=100L, COR, skewness, kurtosis) {
     X
 }
 
+####### The following functions are copied from the plyr package.
+
+rbind.fill <- function (...) 
+{
+    dfs <- list(...)
+    if (length(dfs) == 0) 
+        return()
+    if (is.list(dfs[[1]]) && !is.data.frame(dfs[[1]])) {
+        dfs <- dfs[[1]]
+    }
+    dfs <- compact(dfs)
+    if (length(dfs) == 0) 
+        return()
+    if (length(dfs) == 1) 
+        return(dfs[[1]])
+    is_df <- vapply(dfs, is.data.frame, logical(1))
+    if (any(!is_df)) {
+        stop("All inputs to rbind.fill must be data.frames", 
+            call. = FALSE)
+    }
+    rows <- unlist(lapply(dfs, .row_names_info, 2L))
+    nrows <- sum(rows)
+    ot <- output_template(dfs, nrows)
+    setters <- ot$setters
+    getters <- ot$getters
+    if (length(setters) == 0) {
+        return(as.data.frame(matrix(nrow = nrows, ncol = 0)))
+    }
+    pos <- matrix(c(cumsum(rows) - rows + 1, rows), ncol = 2)
+    for (i in seq_along(rows)) {
+        rng <- seq(pos[i, 1], length = pos[i, 2])
+        df <- dfs[[i]]
+        for (var in names(df)) {
+            setters[[var]](rng, df[[var]])
+        }
+    }
+    quickdf(lapply(getters, function(x) x()))
+}
+
+quickdf <- function (list) 
+{
+    rows <- unique(unlist(lapply(list, NROW)))
+    stopifnot(length(rows) == 1)
+    names(list) <- make_names(list, "X")
+    class(list) <- "data.frame"
+    attr(list, "row.names") <- c(NA_integer_, -rows)
+    list
+}
+
+compact <- function (l) Filter(Negate(is.null), l)
+
+output_template <- function (dfs, nrows) 
+{
+    vars <- unique(unlist(lapply(dfs, base::names)))
+    output <- vector("list", length(vars))
+    names(output) <- vars
+    seen <- rep(FALSE, length(output))
+    names(seen) <- vars
+    for (df in dfs) {
+        matching <- intersect(names(df), vars[!seen])
+        for (var in matching) {
+            output[[var]] <- allocate_column(df[[var]], nrows, 
+                dfs, var)
+        }
+        seen[matching] <- TRUE
+        if (all(seen)) 
+            break
+    }
+    list(setters = lapply(output, `[[`, "set"), getters = lapply(output, 
+        `[[`, "get"))
+}
+
+allocate_column <- function (example, nrows, dfs, var) 
+{
+    a <- attributes(example)
+    type <- typeof(example)
+    class <- a$class
+    isList <- is.recursive(example)
+    a$names <- NULL
+    a$class <- NULL
+    if (is.data.frame(example)) {
+        stop("Data frame column '", var, "' not supported by rbind.fill")
+    }
+    if (is.array(example)) {
+        if (length(dim(example)) > 1) {
+            if ("dimnames" %in% names(a)) {
+                a$dimnames[1] <- list(NULL)
+                if (!is.null(names(a$dimnames))) 
+                  names(a$dimnames)[1] <- ""
+            }
+            df_has <- vapply(dfs, function(df) var %in% names(df), 
+                FALSE)
+            dims <- unique(lapply(dfs[df_has], function(df) dim(df[[var]])[-1]))
+            if (length(dims) > 1) 
+                stop("Array variable ", var, " has inconsistent dims")
+            a$dim <- c(nrows, dim(example)[-1])
+            length <- prod(a$dim)
+        }
+        else {
+            a$dim <- NULL
+            a$dimnames <- NULL
+            length <- nrows
+        }
+    }
+    else {
+        length <- nrows
+    }
+    if (is.factor(example)) {
+        df_has <- vapply(dfs, function(df) var %in% names(df), 
+            FALSE)
+        isfactor <- vapply(dfs[df_has], function(df) is.factor(df[[var]]), 
+            FALSE)
+        if (all(isfactor)) {
+            levels <- unique(unlist(lapply(dfs[df_has], function(df) levels(df[[var]]))))
+            a$levels <- levels
+            handler <- "factor"
+        }
+        else {
+            type <- "character"
+            handler <- "character"
+            class <- NULL
+            a$levels <- NULL
+        }
+    }
+    else if (inherits(example, "POSIXt")) {
+        tzone <- attr(example, "tzone")
+        class <- c("POSIXct", "POSIXt")
+        type <- "double"
+        handler <- "time"
+    }
+    else {
+        handler <- type
+    }
+    column <- vector(type, length)
+    if (!isList) {
+        column[] <- NA
+    }
+    attributes(column) <- a
+    assignment <- make_assignment_call(length(a$dim))
+    setter <- switch(handler, character = function(rows, what) {
+        what <- as.character(what)
+        eval(assignment)
+    }, factor = function(rows, what) {
+        what <- match(what, levels)
+        eval(assignment)
+    }, time = function(rows, what) {
+        what <- as.POSIXct(what, tz = tzone)
+        eval(assignment)
+    }, function(rows, what) {
+        eval(assignment)
+    })
+    getter <- function() {
+        class(column) <<- class
+        column
+    }
+    list(set = setter, get = getter)
+}
+
+make_assignment_call <- function (ndims) 
+{
+    assignment <- quote(column[rows] <<- what)
+    if (ndims >= 2) {
+        assignment[[2]] <- as.call(c(as.list(assignment[[2]]), 
+            rep(list(quote(expr = )), ndims - 1)))
+    }
+    assignment
+}
+
+make_names <- function (x, prefix = "X") 
+{
+    nm <- names(x)
+    if (is.null(nm)) {
+        nm <- rep.int("", length(x))
+    }
+    n <- sum(nm == "", na.rm = TRUE)
+    nm[nm == ""] <- paste(prefix, seq_len(n), sep = "")
+    nm
+}
+
+# Copy from lavaan to avoid using hidden function in lavaan
+
+temp.unstandardize.est.ov <- function(partable, ov.var=NULL, cov.std=TRUE) {
+
+    # check if ustart is missing; if so, look for est
+    if(is.null(partable$ustart)) 
+        partable$ustart <- partable$est
+  
+    # check if group is missing
+    if(is.null(partable$group)) 
+        partable$group <- rep(1L, length(partable$ustart))
+
+    stopifnot(!any(is.na(partable$ustart)))
+    est <- out <- partable$ustart
+    N <- length(est)
+    ngroups <- max(partable$group)
+
+    # if ov.var is NOT a list, make a list
+    if(!is.list(ov.var)) {
+        tmp <- ov.var
+        ov.var <- vector("list", length=ngroups)
+        ov.var[1:ngroups] <- list(tmp)
+    }
+
+    for(g in 1:ngroups) {
+
+        ov.names <- lavaan::lavNames(partable, "ov", group=g) # not user
+        lv.names <- lavaan::lavNames(partable, "lv", group=g)
+
+        OV  <- sqrt(ov.var[[g]])
+
+        # 1a. "=~" regular indicators
+        idx <- which(partable$op == "=~" & !(partable$rhs %in% lv.names) &
+                     partable$group == g)
+        out[idx] <- out[idx] * OV[ match(partable$rhs[idx], ov.names) ]
+
+        # 1b. "=~" regular higher-order lv indicators
+
+        # 1c. "=~" indicators that are both in ov and lv
+        #idx <- which(partable$op == "=~" & partable$rhs %in% ov.names
+        #                             & partable$rhs %in% lv.names &
+        #             partable$group == g)
+
+        # 2. "~" regressions (and "<~")
+        idx <- which((partable$op == "~" | partable$op == "<~") & 
+                     partable$lhs %in% ov.names &
+                     partable$group == g)
+        out[idx] <- out[idx] * OV[ match(partable$lhs[idx], ov.names) ]
+
+        idx <- which((partable$op == "~" | partable$op == "<~") & 
+                     partable$rhs %in% ov.names &
+                     partable$group == g)
+        out[idx] <- out[idx] / OV[ match(partable$rhs[idx], ov.names) ]
+
+        # 3a. "~~" ov
+        # ATTENTION: in Mplus 4.1, the off-diagonal residual covariances 
+        #            were computed by the formula cov(i,j) / sqrt(i.var*j.var)
+        #            were i.var and j.var where diagonal elements of OV
+        #
+        #            in Mplus 6.1 (but also AMOS and EQS), the i.var and j.var
+        #            elements are the 'THETA' diagonal elements!!
+
+        # variances
+        rv.idx <- which(partable$op == "~~" & !(partable$lhs %in% lv.names) & 
+                        partable$lhs == partable$rhs &
+                        partable$group == g)
+        out[rv.idx] <- ( out[rv.idx] * OV[ match(partable$lhs[rv.idx], ov.names) ]
+                                     * OV[ match(partable$rhs[rv.idx], ov.names) ] )
+
+        # covariances
+        idx <- which(partable$op == "~~" & !(partable$lhs %in% lv.names) &
+                     partable$lhs != partable$rhs &
+                     partable$group == g)
+        if(length(idx) > 0L) {
+            if(cov.std == FALSE) {
+                out[idx] <- ( out[idx] * OV[ match(partable$lhs[idx], ov.names) ]
+                                       * OV[ match(partable$rhs[idx], ov.names) ] )
+            } else {
+                # RV   <- sqrt(est[rv.idx])
+                RV   <- sqrt(out[rv.idx])
+                rv.names <- partable$lhs[rv.idx]
+                out[idx] <- ( out[idx] * RV[ match(partable$lhs[idx], rv.names) ]
+                                       * RV[ match(partable$rhs[idx], rv.names) ] )
+            }
+        }
+
+        # 3b. "~~" lv
+        #idx <- which(partable$op == "~~" & partable$rhs %in% lv.names &
+        #             partable$group == g)
+
+        # 4a. "~1" ov
+        idx <- which(partable$op == "~1" & !(partable$lhs %in% lv.names) &
+                     partable$group == g)
+        out[idx] <- out[idx] * OV[ match(partable$lhs[idx], ov.names) ]
+
+        # 4b. "~1" lv
+        #idx <- which(partable$op == "~1" & partable$lhs %in% lv.names &
+        #             partable$group == g)
+
+    }
+
+    # 5a ":="
+    # 5b "=="
+    # 5c. "<" or ">"
+
+    out
+}

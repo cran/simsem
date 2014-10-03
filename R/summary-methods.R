@@ -72,7 +72,7 @@ setMethod("summary", signature = "SimResult", definition = function(object, digi
 		haveFit <- length(colnames(object@fit)) > 0
 		if(haveFit) {
 			cat("========= Fit Indices Cutoffs ============\n")
-			print(round(summaryFit(object, alpha = alpha), digits))
+			print(round(summaryFit(object, alpha = alpha, usedFit = usedFit), digits))
 		}
 		cat("========= Parameter Estimates and Standard Errors ============\n")
 		print(summaryParam(object, digits=digits))
@@ -254,6 +254,7 @@ cleanUsedFit <- function(txt, ...) {
 		txt
 	}
 	if(length(arg) > 0) {
+		LIST <- list(...)
 		txt <- intersection(txt, ...)
 		if(length(txt) == 0) {
 			if(is.null(txtOrig)) {

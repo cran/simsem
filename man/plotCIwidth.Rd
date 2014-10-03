@@ -30,7 +30,7 @@ NONE. The plot the confidence interval width is provided.
 Lai, K., & Kelley, K. (2011). Accuracy in parameter estimation for targeted effects in structural equation modeling: Sample size planning for narrow confidence intervals. \emph{Psychological Methods, 16}, 127-148.
 }
 \author{
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu})
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu})
 }
 \seealso{
 	\itemize{
@@ -69,8 +69,9 @@ Output2 <- sim(NULL, n=seq(450, 500, 10), model=CFA.Model)
 # Plot the widths along sample size value
 plotCIwidth(Output2, "f1~~f2", assurance = 0.80)
 
-# Specify both continuous sample size and percent missing completely at random. Note that more fine-grained 
-# values of n and pmMCAR is needed, e.g., n=seq(50, 500, 1) and pmMCAR=seq(0, 0.2, 0.01)
+# Specify both continuous sample size and percent missing completely at random. 
+# Note that more fine-grained values of n and pmMCAR is needed, e.g., n=seq(50, 500, 1) 
+# and pmMCAR=seq(0, 0.2, 0.01)
 Output3 <- sim(NULL, n=seq(450, 500, 10), pmMCAR=c(0, 0.05, 0.1, 0.15), model=CFA.Model)
 
 # Plot the contours that each contour represents the value of widths at each level

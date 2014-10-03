@@ -7,7 +7,8 @@
 	Extract fit indices information from the simulation of parent and nested models and getCutoff of fit indices given a priori alpha level
 }
 \usage{
-getCutoffNested(nested, parent, alpha = 0.05, usedFit = NULL, nVal = NULL, pmMCARval = NULL, pmMARval = NULL, df = 0)
+getCutoffNested(nested, parent, alpha = 0.05, usedFit = NULL, nVal = NULL, 
+	pmMCARval = NULL, pmMARval = NULL, df = 0)
 }
 \arguments{
   \item{nested}{
@@ -39,7 +40,7 @@ getCutoffNested(nested, parent, alpha = 0.05, usedFit = NULL, nVal = NULL, pmMCA
 	One-tailed cutoffs of several fit indices with a priori alpha level 
 }
 \author{
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu})
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu})
 }
 \seealso{
 	\code{\linkS4class{SimResult}} for a detail of simResult

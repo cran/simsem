@@ -43,7 +43,7 @@ plotCoverage(object, coverParam, coverValue = NULL, contParam = NULL, contN = TR
 	Not return any value. This function will plot a graph only.
 }
 \author{
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu}), Alexander M. Schoemann (University of Kansas; \email{schoemann@ku.edu})
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu}), Alexander M. Schoemann (East Carolina University; \email{schoemanna@ecu.edu})
 }
 \seealso{
 	\itemize{
@@ -60,8 +60,9 @@ RPS <- binds(diag(1))
 RTE <- binds(diag(6))
 CFA.Model <- model(LY = LY, RPS = RPS, RTE = RTE, modelType="CFA")
 
-# Specify both continuous sample size and percent missing completely at random. Note that more fine-grained 
-# values of n and pmMCAR is needed, e.g., n=seq(50, 500, 1) and pmMCAR=seq(0, 0.2, 0.01)
+# Specify both continuous sample size and percent missing completely at random. 
+# Note that more fine-grained values of n and pmMCAR is needed, e.g., n=seq(50, 500, 1) 
+# and pmMCAR=seq(0, 0.2, 0.01)
 
 Output <- sim(NULL, n=seq(100, 200, 20), pmMCAR=c(0, 0.1, 0.2), model=CFA.Model)
 

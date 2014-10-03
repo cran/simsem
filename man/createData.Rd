@@ -8,8 +8,8 @@
 }
 \usage{
 createData(paramSet, n, indDist=NULL, sequential=FALSE, facDist=NULL, 
-errorDist=NULL, indLab=NULL, modelBoot=FALSE, realData=NULL, covData=NULL, 
-empirical = FALSE)
+errorDist=NULL, saveLatentVar = FALSE, indLab=NULL, facLab = NULL, 
+modelBoot=FALSE, realData=NULL, covData=NULL, empirical = FALSE)
 }
 \arguments{
   \item{paramSet}{
@@ -30,8 +30,14 @@ empirical = FALSE)
   \item{errorDist}{
 	An object or list of objects of type \code{SimDataDist} indicating the distribution of errors. If a single \code{SimDataDist} is specified, each error will be genrated with that distribution.
 }
+  \item{saveLatentVar}{ 
+	If \code{TRUE}, the total latent variable scores, residual latent variable scores, and measurement error scores are also provided as the \code{"latentVar"} attribute of the generated data by the following line: \code{attr(generatedData, "latentVar")}. The \code{sequential} argument must be \code{TRUE} in order to use this option.
+}
   \item{indLab}{
 	A vector of indicator labels. When not specified, the variable names are \code{x1, x2, ... xN}.
+}
+  \item{facLab}{
+	A vector of factor labels. When not specified, the variable names are \code{f1, f2, ... fN}.
 }
   \item{modelBoot}{
 	When specified, a model-based bootstrap is used for data generation. See details for further information. This argument requires real data to be passed to \code{readData}.
@@ -72,7 +78,7 @@ Vale, C. D. & Maurelli, V. A. (1983) Simulating multivariate nonormal distributi
 Yung, Y.-F., & Bentler, P. M. (1996). Bootstrapping techniques in analysis of mean and covariance structures. In G. A. Marcoulides & R. E. Schumacker (Eds.), \emph{Advanced structural equation modeling: Issues and techniques} (pp. 195-226). Mahwah, NJ: Erlbaum.
 }
 \author{	
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu}), Patrick Miller (Univeristy of Notre Dame; \email{pmille13@nd.edu}). The original code of \code{mvrnorm} function is based on the \code{MASS} package slightly modified by Paul E. Johnson. The code for data-transformation in multivariate copula is based on Mair et al. (2012) article. The code for Vale and Maurelli (1983) is slightly modified from the function provided in the \code{lavaan} package.
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu}), Patrick Miller (University of Notre Dame; \email{pmille13@nd.edu}). The original code of \code{mvrnorm} function is based on the \code{MASS} package slightly modified by Paul E. Johnson. The code for data-transformation in multivariate copula is based on Mair et al. (2012) article. The code for Vale and Maurelli (1983) is slightly modified from the function provided in the \code{lavaan} package.
 }
 \examples{
 loading <- matrix(0, 6, 2)

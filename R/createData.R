@@ -8,8 +8,9 @@
 ## is generated.
 
 createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist = NULL, 
-    errorDist = NULL, indLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL,
+    errorDist = NULL, saveLatentVar = FALSE, indLab = NULL, facLab = NULL, modelBoot = FALSE, realData = NULL, covData = NULL,
 	empirical = FALSE) {
+	
 	# Assume covData is good
     if (modelBoot) {
         if (sequential) 
@@ -40,6 +41,7 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
     # soon
     
     Data <- NULL
+	ExtraData <- NULL
     param <- paramSet$param
     usedParam <- NULL
     if (!is.null(paramSet$misspec)) {
@@ -49,7 +51,6 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
     }
   
     if (modelBoot) {
-        require(lavaan)
 		if(!is.null(covData)) realData <- data.frame(covData, realData)
 		covStat <- list(MZ = as.matrix(colMeans(covData)), CZ = cov(covData))
         implied <- createImpliedMACS(usedParam, covStat)
@@ -65,12 +66,32 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
         Data <- z[index, ]
     } else {
         if (sequential) {
+			latentVariableScore <- NULL
+			latentResidualScore <- NULL
+			measurementErrorScore <- NULL
             if (is.null(usedParam$BE) && !is.null(usedParam$LY)) {
                 # CFA
+              if(!is.null(facDist)){
                 fac <- dataGen(facDist, n, usedParam$AL, usedParam$PS, empirical = empirical)
-				if(!is.null(covData)) fac <- fac + (as.matrix(covData) %*% t(usedParam$GA))
+              }
+              else{
+                fac <-mvrnorm(n, usedParam$AL, usedParam$PS, empirical = empirical)
+              }
+				if(!is.null(covData)) {
+					latentResidualScore <- fac
+					fac <- fac + (as.matrix(covData) %*% t(usedParam$GA))
+				}
+				latentVariableScore <- fac
                 trueScore <- fac %*% t(usedParam$LY)
-                errorScore <- dataGen(errorDist, n, usedParam$TY, usedParam$TE, empirical = empirical)
+                
+				if(!is.null(errorDist)){
+				  errorScore <- dataGen(errorDist, n, usedParam$TY, usedParam$TE, empirical = empirical)
+				}
+				else{
+				  errorScore <- mvrnorm(n, usedParam$TY, usedParam$TE, empirical = empirical)
+				}
+				
+				measurementErrorScore <- errorScore
                 Data <- trueScore + errorScore
 				if(!is.null(covData)) Data <- Data + (as.matrix(covData) %*% t(usedParam$KA))
             } else {
@@ -81,34 +102,81 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
                 } else {
                   stop("Incorrect model type")
                 }
-                set <- findRecursiveSet(usedParam2$BE)
+               set <- findRecursiveSet(usedParam2$BE)
                 iv <- set[[1]]
-                fac <- dataGen(extractSimDataDist(facDist, iv), n, usedParam2$AL[iv], 
-                  usedParam2$PS[iv, iv], empirical = empirical)
-				if(!is.null(covData)) fac <- fac + (as.matrix(covData) %*% t(usedParam2$GA[iv, ,drop=FALSE]))
+                if(!is.null(facDist)){
+                  fac <- dataGen(extractSimDataDist(facDist, iv), n, usedParam2$AL[iv], 
+                                 usedParam2$PS[iv, iv], empirical = empirical)                
+                } else{
+                  fac <-mvrnorm(n, usedParam2$AL[iv], 
+                                usedParam2$PS[iv, iv], empirical = empirical)
+                }
+				if(!is.null(covData)) {
+					latentResidualScore <- fac
+					fac <- fac + (as.matrix(covData) %*% t(usedParam2$GA[iv, ,drop=FALSE]))
+				} else if(length(set) > 1) {
+					latentResidualScore <- fac
+				}
+				if(length(set) > 1) {
                 for (i in 2:length(set)) {
                   dv <- set[[i]]
                   pred <- fac %*% t(usedParam2$BE[dv, iv, drop = FALSE])
-                  res <- dataGen(extractSimDataDist(facDist, dv), n, usedParam2$AL[dv], 
-                    usedParam2$PS[dv, dv], empirical = empirical)
+                  if(!is.null(facDist)){
+                    res <- dataGen(extractSimDataDist(facDist, dv), n, usedParam2$AL[dv], 
+                                   usedParam2$PS[dv, dv], empirical = empirical)
+                  }
+                  else{
+                    res <- mvrnorm(n, usedParam2$AL[dv], 
+                                   usedParam2$PS[dv, dv], empirical = empirical)
+                  }
+				  latentResidualScore <- cbind(latentResidualScore, res)
                   new <- pred + res
 				  if(!is.null(covData)) new <- new + (as.matrix(covData) %*% t(usedParam2$GA[dv, ,drop=FALSE]))
                   fac <- cbind(fac, new)
                   iv <- c(iv, set[[i]])
                 }
+				}
+				neworder <- match(1:length(iv), iv)
+				fac <- fac[, neworder]
+				if(!is.null(latentResidualScore)) latentResidualScore <- latentResidualScore[, neworder]
+				latentVariableScore <- fac
                 if (is.null(usedParam$LY)) {
                   # Path
                   Data <- fac
                 } else {
                   # SEM
                   trueScore <- fac %*% t(usedParam2$LY)
-                  errorScore <- dataGen(errorDist, n, usedParam2$TY, usedParam2$TE, empirical = empirical)
+                  
+                  if(!is.null(errorDist)){
+                    errorScore <- dataGen(errorDist, n, usedParam2$TY, usedParam2$TE, empirical = empirical)
+                  }
+                  else{
+                    errorScore <- mvrnorm(n, usedParam2$TY, usedParam2$TE, empirical = empirical)
+                  }
+				  measurementErrorScore <- errorScore
                   Data <- trueScore + errorScore
 				  if(!is.null(covData)) Data <- Data + (as.matrix(covData) %*% t(usedParam2$KA))
                 }
             }
 			if(!is.null(covData)) Data <- data.frame(covData, Data)
+			if(saveLatentVar) {
+				if(!is.null(usedParam$LY)) {
+					if(is.null(facLab)) facLab <- paste0("f", 1:ncol(latentVariableScore))
+					colnames(latentVariableScore) <- facLab
+					errorName <- indLab
+					if(is.null(errorName)) errorName <- paste0("y", 1:ncol(measurementErrorScore))
+					colnames(measurementErrorScore) <- paste0("res_", errorName)
+					if(!is.null(latentResidualScore)) colnames(latentResidualScore) <- paste0("res_", facLab)
+				} else {
+					errorName <- indLab
+					if(is.null(errorName)) errorName <- paste0("y", 1:ncol(latentVariableScore))
+					latentVariableScore <- NULL
+					if(!is.null(latentResidualScore)) colnames(latentResidualScore) <- paste0("res_", errorName)
+				}
+				ExtraData <- data.frame(cbind(latentVariableScore, latentResidualScore, measurementErrorScore))
+			}
         } else {
+			# Covariance matrix based data generation
 			if(is.null(covData)) {
 				macs <- createImpliedMACS(usedParam)
 				if (!is.null(indDist)) {
@@ -140,6 +208,7 @@ createData <- function(paramSet, n, indDist = NULL, sequential = FALSE, facDist 
 	}
     colnames(Data) <- varnames
     Data <- as.data.frame(Data)
+	if(saveLatentVar) Data <- list(Data, ExtraData)
     return(Data)
 }
 
@@ -148,7 +217,7 @@ dataGen <- function(dataDist, n, m, cm, empirical = FALSE) {
     # Check dim(M) dim(CM) dim(copula) are equal
     if (!is.null(dataDist)) {
 		if(any(is.na(dataDist@skewness))) {
-			require(copula)
+			library(copula)
 			if (dataDist@p > 1) {
 				varNotZeros <- diag(cm) != 0
 				dataDist2 <- dataDist
@@ -165,16 +234,16 @@ dataGen <- function(dataDist, n, m, cm, empirical = FALSE) {
 				}
 				
 				if(!is(dataDist@copula, "NullCopula")) {
-					Mvdc <- mvdc(dataDist@copula, dataDist2@margins, dataDist2@paramMargins)
+					Mvdc <- copula::mvdc(dataDist@copula, dataDist2@margins, dataDist2@paramMargins)
 					Data <- CopSEM(Mvdc, cm2, nw = n * 100, np = n)
 				} else {
 					r <- cov2cor(as.matrix(cm2))
 					listR <- r[lower.tri(diag(dataDist2@p))]
-					CopNorm <- ellipCopula(family = "normal", dim = dataDist2@p, dispstr = "un", 
+					CopNorm <- copula::ellipCopula(family = "normal", dim = dataDist2@p, dispstr = "un", 
 						param = listR)
 					
-					Mvdc <- mvdc(CopNorm, dataDist2@margins, dataDist2@paramMargins)
-					Data <- rMvdc(n, Mvdc)
+					Mvdc <- copula::mvdc(CopNorm, dataDist2@margins, dataDist2@paramMargins)
+					Data <- copula::rMvdc(n, Mvdc)
 				}
 				if (sum(varNotZeros) < dataDist@p) {
 					varZeros <- diag(cm) == 0
@@ -241,13 +310,14 @@ CopSEM <- function(copmvdc, Sigma, nw = 100000, np = 1000) {
 	## Sigma ... model VC-matrix to be approximated
 	## nw ... sample size for warm-up sample
 	## np ... sample size for production sample
+	library(copula)
 	Xw <- rMvdc(nw, copmvdc) ## draw warm-up sample
 	Sw <- cov(Xw) ## warm-up VC matrix
 	Sigma.eigen <- eigen(Sigma) ## EV decomposition Sigma
 	Sigmaroot <- Sigma.eigen$vectors %*% sqrt(diag(Sigma.eigen$values)) %*% t(Sigma.eigen$vectors) ## root Sigma
 	Sx.eigen <- eigen(solve(Sw)) ## EV decomposition S
 	Sxroot <- Sx.eigen$vectors %*% sqrt(diag(Sx.eigen$values)) %*% t(Sx.eigen$vectors) ## root S
-	X <- rMvdc(np, copmvdc) ## draw production sample
+	X <- copula::rMvdc(np, copmvdc) ## draw production sample
 	Y <- (X %*% (Sxroot) %*% Sigmaroot) ## linear combination for Y
 	Y
 }

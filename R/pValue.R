@@ -97,7 +97,7 @@ pValue <- function(target,
 	if(is(target, "lavaan")) {
 		cutoff <- inspect(target, "fit")[usedFit]
 	} else if (is(target, "MxModel")) {
-		cutoff <- semTools:::fitMeasuresMx(target)[usedFit]
+		cutoff <- semTools::fitMeasuresMx(target)[usedFit]
 	} else {
 		stop("The target argument must be a lavaan object or MxModel object.")
 	}
@@ -178,7 +178,7 @@ pValueCondCutoff <- function(target, dist, revDirec = FALSE, x = NULL, xval = NU
     dat <- data.frame(y = dist, x)
     library(quantreg)
     percVal <- 1:49/50
-    mod <- rq(express, data = dat, tau = percVal)
+    mod <- quantreg::rq(express, data = dat, tau = percVal)
     xval <- data.frame(t(as.matrix(xval)))
     colnames(xval) <- name2
     perc <- predict(mod, xval, interval = "none")
@@ -383,7 +383,7 @@ pValueVariedCutoff <- function(cutoff, obtainedValue, revDirec = FALSE, x = NULL
     } else {
         x <- as.matrix(x)
         mod <- invisible(try(glm(sig ~ x, family = binomial(link = "logit")), silent = TRUE))
-        result <- predProb(c(1, xval), mod)
+        result <- predProb(c(1, xval), mod)[2]
     }
     ## Return warnings setting to user's settings
     options(warn = warnT)

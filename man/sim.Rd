@@ -8,14 +8,16 @@
 }
 \usage{
 sim(nRep, model, n, generate = NULL, ..., rawData = NULL, miss = NULL, datafun=NULL, 
-lavaanfun = "lavaan", outfun=NULL, pmMCAR = NULL, pmMAR = NULL, facDist = NULL, indDist = NULL, 
-errorDist = NULL, sequential = FALSE, modelBoot = FALSE, realData = NULL, 
-covData = NULL, maxDraw = 50, misfitType = "f0", misfitBounds = NULL, 
-averageNumMisspec = FALSE, optMisfit=NULL, optDraws = 50, 
-createOrder = c(1, 2, 3), aux = NULL, group = NULL, mxFit = FALSE, mxMixture = FALSE, 
-citype = NULL, cilevel = 0.95, seed = 123321, silent = FALSE, 
-multicore = FALSE, cluster = FALSE, numProc = NULL, paramOnly = FALSE, 
-dataOnly=FALSE, smartStart=FALSE, previousSim = NULL, completeRep = FALSE)
+	lavaanfun = "lavaan", outfun=NULL, outfundata = NULL, pmMCAR = NULL, 
+	pmMAR = NULL, 	facDist = NULL, indDist = NULL, errorDist = NULL, 
+	sequential = FALSE, saveLatentVar = FALSE, modelBoot = FALSE, realData = NULL, 
+	covData = NULL, maxDraw = 50, misfitType = "f0", misfitBounds = NULL, 
+	averageNumMisspec = FALSE, optMisfit=NULL, optDraws = 50, 
+	createOrder = c(1, 2, 3), aux = NULL, group = NULL, mxFit = FALSE, 
+	mxMixture = FALSE, citype = NULL, cilevel = 0.95, seed = 123321, silent = FALSE, 
+	multicore = options('simsem.multicore')[[1]], cluster = FALSE, 
+	numProc = NULL, paramOnly = FALSE, dataOnly=FALSE, smartStart=FALSE, 
+	previousSim = NULL, completeRep = FALSE, stopOnError = FALSE)
 }
 \arguments{
   \item{nRep}{
@@ -28,7 +30,7 @@ dataOnly=FALSE, smartStart=FALSE, previousSim = NULL, completeRep = FALSE)
 	Sample size. Either a single value, or a list of values to vary sample size across replications. The \code{n} argument can also be specified as a random distribution object; if any resulting values are non-integers, the decimal will be rounded. 
 }
   \item{generate}{
-	There are three options for this argument: 1. \code{\linkS4class{SimSem}} object created by \code{\link{model}}, 2. \code{lavaan} script, \code{lavaan} parameter table (for data generation; see \code{\link[lavaan]{simulateData}}), or a list that contains all argument that users use to run \code{\link[lavaan]{simulateData}}, 3. \code{MxModel} object with population parameters specified in the starting values of all matrices in the model. This argument cannot be specified the same time as the \code{rawData} argument
+	There are four options for this argument: 1. \code{\linkS4class{SimSem}} object created by \code{\link{model}}, 2. \code{lavaan} script, \code{lavaan} parameter table (for data generation; see \code{\link[lavaan]{simulateData}}), or a list that contains all argument that users use to run \code{\link[lavaan]{simulateData}}, 3. \code{MxModel} object with population parameters specified in the starting values of all matrices in the model, 4. a function that take only one sample size argument (by integer for single-group model or by a vector of integers for multiple-group model). This argument cannot be specified the same time as the \code{rawData} argument
 }
   \item{rawData}{
 	There are two options for this argument: 1. a list of data frames to be used in simulations or 2. a population data. If a list of data frames is specified, the \code{nRep} and \code{n} arguments must not be specified. If a population data frame is specified, the \code{nRep} and \code{n} arguments are required.
@@ -44,6 +46,9 @@ dataOnly=FALSE, smartStart=FALSE, previousSim = NULL, completeRep = FALSE)
 }
   \item{outfun}{
 	A function to be applied to the \code{\linkS4class{lavaan}} output at each replication. Output from this function in each replication will be saved in the simulation output (\code{\linkS4class{SimResult}}), and can be obtained using the \code{\link{getExtraOutput}} function.
+}
+  \item{outfundata}{
+	A function to be applied to the \code{\linkS4class{lavaan}} output and the generated data at each replication. Users can get the characteristics of the generated data and also compare the characteristics with the generated output. The output from this function in each replication will be saved in the simulation output (\code{\linkS4class{SimResult}}), and can be obtained using the \code{\link{getExtraOutput}} function.
 }
   \item{pmMCAR}{
 	The percentage of data completely missing at random (0 <= pmMCAR < 1). Either a single value or a vector of values in order to vary pmMCAR across replications (with length equal to nRep or a divisor of nRep). The \code{objMissing} argument is only required when specifying complex missing value data generation, or when using multiple imputation. 
@@ -63,6 +68,9 @@ dataOnly=FALSE, smartStart=FALSE, previousSim = NULL, completeRep = FALSE)
 }
   \item{sequential}{ 
 	If \code{TRUE}, a sequential method is used to generate data in which factor data is generated first, and is subsequently applied to a set of equations to obtain the indicator data. If \code{FALSE}, data is generated directly from model-implied mean and covariance of the indicators.
+}
+  \item{saveLatentVar}{ 
+	If \code{TRUE}, the generated latent variable scores and measurement error scores are also provided as the attribute of the generated data. Users can use the \code{outfundata} to compare the latent variable scores with the estimated output. The \code{sequential} argument must be \code{TRUE} in order to use this option.
 }
   \item{modelBoot}{ 
 	 When specified, a model-based bootstrap is used for data generation (for use with the \code{realData} argument). See \code{\link{draw}} for further information.
@@ -119,7 +127,7 @@ dataOnly=FALSE, smartStart=FALSE, previousSim = NULL, completeRep = FALSE)
 	If \code{TRUE}, suppress warnings.
 }
   \item{multicore}{ 
-	If \code{TRUE}, multiple processors within a computer will be utilized.
+	Users may put \code{TRUE} or \code{FALSE}. If \code{TRUE}, multiple processors within a computer will be utilized. The default value is \code{FALSE}. Users may permanently change the default value by assigning the following line: \code{options('simsem.multicore' = TRUE)}
 }
   \item{cluster}{ 
 	Not applicable now. Used to specify nodes in hpc in order to be parallelizable.
@@ -142,13 +150,14 @@ dataOnly=FALSE, smartStart=FALSE, previousSim = NULL, completeRep = FALSE)
   \item{completeRep}{
 	If \code{TRUE}, the function will run until the number of convergent replication equal to the specified \code{nRep}.
 }
+  \item{stopOnError}{ 
+	If \code{TRUE}, stop running the simulation when the error occurs during the data analysis on any replications.
+}
   \item{\dots}{ 
 	Additional arguments to be passed to lavaan.
 }
 }
 \details{
-
-
 This function is executed as follows: 1. parameters are drawn from the specified data-generation model (applicable only simsem model template, \code{\linkS4class{SimSem}}, only), 2. the drawn (or the specified) parameters are used to create data, 3. data can be transformed using the \code{datafun} argument, 4. specified missingness (if any) is imposed, 5. data are analyzed using the specified analysis model, 6. parameter estimates, standard errors, fit indices, and other characteristics of a replication are extracted, 7. additional outputs (if any) are extracted using the \code{outfun} argument, and 8. results across replications are summarized in a result object, \code{\linkS4class{SimResult}}).
 
 There are five ways to provide or generate data in this function: 
@@ -167,7 +176,7 @@ There are four ways to analyze the data sets for each replication by setting the
 		\item \code{\linkS4class{SimSem}} can be used as a template for data analysis. 
 		\item \code{lavaan} script, parameter table for the \code{lavaan} package, or a list of arguments for the \code{\link[lavaan]{lavaan}}, \code{\link[lavaan]{sem}}, \code{\link[lavaan]{cfa}}, or \code{\link[lavaan]{growth}} function. Note that if the desired function to analyze data can be specified in the \code{lavaanfun} argument, which the default is the \code{\link[lavaan]{lavaan}} function
 		\item \code{MxModel} object from the \code{OpenMx} package. The object does not need to have data inside. Note that if users need an extensive fit indices, the \code{mxFit} argument should be specified as \code{TRUE}. If users wish to analyze by mixture model, the \code{mxMixture} argument should be \code{TRUE} such that the \code{sim} function knows how to handle the data.
-		\item A function that takes a data set and returns a list. The list must contain at least three objects: a vector of parameter estimates (\code{coef}), a vector of standard error (\code{se}), and the convergence status as \code{TRUE} or \code{FALSE} (\code{converged}). There are seven optional objects in the list: a vector of fit indices (\code{fit}), a vector of standardized estimates (\code{std}), any extra output (\code{extra}), fraction missing type I (\code{FMI1}), fraction missing type II (\code{FMI2}), lower bounds of confidence intervals (\code{cilower}), and upper bounds of confidence intervals (\code{ciupper}). Note that the \code{coef}, \code{se}, \code{std}, \code{FMI1}, \code{FMI2}, \code{cilower}, and \code{ciupper} must be a vector with names. The name of those vectors across different objects must be the same.
+		\item A function that takes a data set and returns a list. The list must contain at least three objects: a vector of parameter estimates (\code{coef}), a vector of standard error (\code{se}), and the convergence status as \code{TRUE} or \code{FALSE} (\code{converged}). There are seven optional objects in the list: a vector of fit indices (\code{fit}), a vector of standardized estimates (\code{std}), any extra output (\code{extra}), fraction missing type I (\code{FMI1}), fraction missing type II (\code{FMI2}), lower bounds of confidence intervals (\code{cilower}), and upper bounds of confidence intervals (\code{ciupper}). Note that the \code{coef}, \code{se}, \code{std}, \code{FMI1}, \code{FMI2}, \code{cilower}, and \code{ciupper} must be a vector with names. The name of those vectors across different objects must be the same. Users may optionally specify other objects in the list; however, the results of the other objects will not be automatically combined. Users need to specify the \code{outfun} argument to get the extra objects. For example, researchers may specify \code{residuals} in the list. The outfun argument should have the function as follows: \code{function(obj) obj$residuals}.
 	}
 	
 Any combination of data-generation methods and data-analysis methods are valid. For example, data can be simulated using lavaan script and analyzed by \code{MxModel}.  Paralleled processing can be enabled using the \code{multicore} argument. 
@@ -176,8 +185,8 @@ Any combination of data-generation methods and data-analysis methods are valid. 
 	A result object (\code{\linkS4class{SimResult}})
 }
 \author{
-	Patrick Miller (Univeristy of Notre Dame; \email{pmille13@nd.edu})
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu})
+	Patrick Miller (University of Notre Dame; \email{pmille13@nd.edu})
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu})
 }
 \seealso{
 	\itemize{
@@ -188,6 +197,7 @@ Any combination of data-generation methods and data-analysis methods are valid. 
 # Please go to www.simsem.org for more examples.
 
 # Example of using simsem model template
+library(lavaan)
 
 loading <- matrix(0, 6, 2)
 loading[1:3, 1] <- NA
@@ -259,6 +269,20 @@ Output <- sim(5, CFA.Model,n=200,datafun=fun1, outfun=fun2)
 summary(Output)
 
 # Get modification indices
+getExtraOutput(Output)
+
+# Example of additional output: Comparing latent variable correlation
+
+outfundata <- function(out, data) {
+	predictcor <- inspect(out, "coef")$psi[2, 1]
+	latentvar <- attr(data, "latentVar")[,c("f1", "f2")]
+	latentcor <- cor(latentvar)[2,1]
+	latentcor - predictcor
+}
+
+Output <- sim(5, CFA.Model,n=200, sequential = TRUE, saveLatentVar = TRUE, 
+	outfundata = outfundata)
+	
 getExtraOutput(Output)
 
 # Example of analyze using a function

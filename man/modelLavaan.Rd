@@ -73,7 +73,7 @@ model.lavaan(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL,
 }
 
 \author{
-    Sunthud Pornprasertmanit (University of Kansas; \email{psunthud@ku.edu})
+    Sunthud Pornprasertmanit (Texas Tech University; \email{sunthud.pornprasertmanit@ttu.edu})
 }
 \seealso{
 	\itemize{
@@ -85,6 +85,7 @@ model.lavaan(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL,
 	}
 }
 \examples{
+library(lavaan)
 HS.model <- ' visual  =~ x1 + x2 + x3
              textual =~ x4 + x5 + x6
              speed   =~ x7 + x8 + x9 '

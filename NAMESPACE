@@ -1,3 +1,4 @@
+importFrom("methods", show)
 importFrom("lavaan", summary, anova, inspect, coef, cor2cov, sqrtSymmetricMatrix)
 exportClasses(SimMatrix, 
 	SimVector, 
@@ -6,7 +7,7 @@ exportClasses(SimMatrix,
 	SimDataDist, 
 	SimMissing)
 exportMethods(summary, summaryShort, 
-	inspect, coef,
+	coef,
 	anova)
 export(bindDist, rawDraw,
 	model, model.cfa, model.path, model.sem,

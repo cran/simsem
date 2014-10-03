@@ -5,8 +5,8 @@
 plotCutoffDataFrame <- function(object, 
     cutoff = NULL, revDirec = FALSE, usedFit = NULL, vector1 = NULL, vector2 = NULL, 
     nameVector1 = NULL, nameVector2 = NULL, alpha = NULL, useContour = TRUE, cutoff2 = NULL) {
-	usedFit <- cleanUsedFit(usedFit, colnames(object))
-    object <- as.data.frame(object[, usedFit])
+	usedFit <- cleanUsedFit(usedFit, tolower(colnames(object)))
+    object <- as.data.frame(object[, match(usedFit, tolower(colnames(object)))])
 	if(!is.null(cutoff)) {
 		names(cutoff) <- cleanUsedFit(names(cutoff))
 		cutoff <- cutoff[usedFit]
@@ -147,10 +147,10 @@ plot3DQtile <- function(x, y, z, df = 0, qtile = 0.5, useContour = TRUE, xlab = 
     xyz <- xyz[apply(is.na(xyz), 1, sum) == 0, ]
     mod <- NULL
     if (df == 0) {
-        mod <- rq(z ~ x + y + x * y, data = xyz, tau = qtile)
+        mod <- quantreg::rq(z ~ x + y + x * y, data = xyz, tau = qtile)
     } else {
         library(splines)
-        mod <- rq(z ~ ns(x, df) + ns(y, df) + ns(x, df) * ns(y, df), data = xyz, 
+        mod <- quantreg::rq(z ~ ns(x, df) + ns(y, df) + ns(x, df) * ns(y, df), data = xyz, 
             tau = qtile)
     }
     xseq <- seq(min(x), max(x), length = 20)
