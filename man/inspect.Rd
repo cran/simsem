@@ -26,6 +26,7 @@
 		\item *\code{"modeltype"}: The type of the simulation result
 		\item *\code{"nrep"}: The number of overall replications, including converged and nonconverged replications
 		\item \code{"param"}: Parameter values (equivalent to the \code{\link{getPopulation}} function)
+		\item \code{"stdparam"}: Standardized parameter values (equivalent to the \code{\link{getPopulation}} function with \code{std = TRUE})
 		\item \code{"coef"}: Parameter estimates (equivalent to the \code{\link[=coef,SimResult-method]{coef}} method)
 		\item \code{"se"}: Standard errors
 		\item \code{"fit"}: Fit indices
@@ -33,6 +34,8 @@
 		\item \code{"popfit"}: Population misfit
 		\item \code{"fmi1"}: Fraction missings type 1
 		\item \code{"fmi2"}: Fraction missings type 2
+		\item \code{"std"}: Standardized Parameter Estimates
+		\item \code{"stdse"}: Standard Errors of Standardized Values
 		\item \code{"cilower"}: Lower bounds of confidence intervals
 		\item \code{"ciupper"}: Upper bounds of confidence intervals
 		\item \code{"ciwidth"}: Widths of confidence intervals

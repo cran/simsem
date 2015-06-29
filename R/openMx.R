@@ -1,7 +1,6 @@
 # Only work for single-group for now.
 
 generateMx <- function(object, n, indDist = NULL, groupLab = NULL, covData = NULL, empirical = FALSE) {
-	library(OpenMx)
 	if(length(object@submodels) > 1) {
 		ngroups <- length(object@submodels)
 		if(!is.list(n)) n <- as.list(n)
@@ -66,7 +65,7 @@ getInnerObjects <- function(xxxobjectxxx) {
 
 generateMxSingleGroup <- function(object, n, indDist = NULL, covData = NULL, extraMatrices = NULL, empirical = FALSE) {
 
-	if(is(object@objective, "MxRAMObjective")) {
+	if(is(object@expectation, "MxExpectationRAM")) {
 		# Create A, F, S, and M to suppress warnings when compiling the package.
 		F <- NULL
 		S <- NULL
@@ -81,26 +80,26 @@ generateMxSingleGroup <- function(object, n, indDist = NULL, covData = NULL, ext
 		if(!is.null(object@matrices$M)) {
 			impliedMean <- OpenMx::mxAlgebra(expression=t(F %*% Z %*% t(M)), name="impliedMean")
 			allAlgebras <- c(allAlgebras, impliedMean = impliedMean)
-			newObjective <- OpenMx::mxFIMLObjective(
+			newExpectation <- OpenMx::mxExpectationNormal(
 				covariance="impliedCov", 
 				means="impliedMean", 
-				dimnames=object@objective@dims, 
-				thresholds=object@objective@thresholds
+				dimnames=object@expectation@dims, 
+				thresholds=object@expectation@thresholds
 			)
 		} else {
-			newObjective <- OpenMx::mxMLObjective(
+			newExpectation <- OpenMx::mxExpectationNormal(
 				covariance="impliedCov", 
-				dimnames=object@objective@dims, 
-				thresholds=object@objective@thresholds
+				dimnames=object@expectation@dims, 
+				thresholds=object@expectation@thresholds
 			)
 		}
 		
 		object@matrices <- allMatrices
 		object@algebras <- allAlgebras
-		object@objective <- newObjective
+		object@expectation <- newExpectation
 	}
-	if (!is(object@objective, "MxMLObjective") & !is(object@objective, "MxFIMLObjective")) {
-		stop("This function supports only MxRAMObjective, MxMLObjective, or MxFIMLObjective.")
+	if (!is(object@expectation, "MxExpectationRAM") & !is(object@expectation, "MxExpectationNormal")) {
+		stop("This function supports only MxExpectationRAM or MxExpectationNormal.")
 	}
 	defVars <- findDefVars(object)	
 	if(length(defVars) > 0) {
@@ -112,7 +111,7 @@ generateMxSingleGroup <- function(object, n, indDist = NULL, covData = NULL, ext
 		impliedCov <- lapply(macs, "[[", 2)
 		impliedThreshold <- lapply(macs, "[[", 3)
 		Data.l <- mapply(dataGen, m=impliedMean, cm=impliedCov, MoreArgs=list(n=1, dataDist=indDist, empirical = empirical), SIMPLIFY=FALSE)
-		if(!all(is.na(object@objective@thresholds))) {
+		if(!all(is.na(object@expectation@thresholds))) {
 			FUN <- function(x, thres) {
 				for(i in colnames(thres)) {
 						thresholdVal <- c(-Inf, setdiff(thres[,i], NA), Inf)
@@ -126,12 +125,12 @@ generateMxSingleGroup <- function(object, n, indDist = NULL, covData = NULL, ext
 		}
 		Data <- data.frame(do.call(rbind, Data.l))
 		rownames(Data) <- NULL
-		varnames <- object@objective@dims
+		varnames <- object@expectation@dims
 		if(any(is.na(varnames))) varnames <- object@manifestVars
 
 		colnames(Data) <- varnames[1:ncol(Data)]
 		if(length(varnames) == 0) varnames <- paste0("y", 1:ncol(Data))
-		if(!(length(object@objective@thresholds) == 1 && is.na(object@objective@thresholds))) {
+		if(!(length(object@expectation@thresholds) == 1 && is.na(object@expectation@thresholds))) {
 			for(i in colnames(impliedThreshold[[1]])) {
 				lev <- 1:length(unique(Data[,i]))
 				Data[,i] <- factor(as.numeric(Data[,i]), levels= lev, labels=lev, exclude=NA, ordered=TRUE)
@@ -143,9 +142,8 @@ generateMxSingleGroup <- function(object, n, indDist = NULL, covData = NULL, ext
 		impliedCov <- implied[[2]]
 		impliedMean <- implied[[1]]
 		impliedThreshold <- implied[[3]]
-		varnames <- object@objective@dims
+		varnames <- object@expectation@dims
 		if(any(is.na(varnames))) varnames <- object@manifestVars
-
 		Data <- dataGen(indDist, n, impliedMean, impliedCov, empirical = empirical)
 		if(length(varnames) == 0) varnames <- paste0("y", 1:ncol(Data))
 		colnames(Data) <- varnames[1:ncol(Data)]
@@ -153,7 +151,7 @@ generateMxSingleGroup <- function(object, n, indDist = NULL, covData = NULL, ext
 		if(!(length(impliedThreshold) == 1 && is.na(impliedThreshold))) {
 			name <- colnames(impliedThreshold)
 			if(is.null(name)) {
-				name <- intersect(object@objective@threshnames, colnames(Data))
+				name <- intersect(object@expectation@threshnames, colnames(Data))
 				colnames(impliedThreshold) <- name
 			}
 			for(i in name) {
@@ -202,25 +200,23 @@ getImpliedStatML <- function(xxxobjectxxx, xxxcovdatatxxx = NULL, xxxextraxxx = 
 	for(i in seq_along(xxxalgebranamexxx)) {
 		assign(xxxalgebranamexxx[i], eval(xxxalgebraformulaxxx[[i]]))
 	}
+	xxximpliedCovxxx <- get(xxxobjectxxx@expectation@covariance)
 	
-	xxximpliedCovxxx <- get(xxxobjectxxx@objective@covariance)
-	
-	if(is.na(xxxobjectxxx@objective@means)) {
+	if(is.na(xxxobjectxxx@expectation@means)) {
 		xxximpliedMeanxxx <- rep(0, nrow(xxximpliedCovxxx))
 	} else {
-		xxximpliedMeanxxx <- get(xxxobjectxxx@objective@means)
+		xxximpliedMeanxxx <- get(xxxobjectxxx@expectation@means)
 	}
 	
-	if(is.na(xxxobjectxxx@objective@thresholds)) {
+	if(is.na(xxxobjectxxx@expectation@thresholds)) {
 		xxximpliedThresholdxxx <- NA
 	} else {
-		xxximpliedThresholdxxx <- get(xxxobjectxxx@objective@thresholds)
+		xxximpliedThresholdxxx <- get(xxxobjectxxx@expectation@thresholds)
 	}
 	list(xxximpliedMeanxxx, xxximpliedCovxxx, xxximpliedThresholdxxx)
 }
 
 analyzeMx <- function(object, data, groupLab = NULL, mxMixture = FALSE, ...) {
-	library(OpenMx)
 	if(length(object@submodels) > 1 & !mxMixture) {
 		temp <- object@submodels
 		if(is.null(groupLab)) groupLab <- "group"
@@ -232,7 +228,7 @@ analyzeMx <- function(object, data, groupLab = NULL, mxMixture = FALSE, ...) {
 	} else {
 		object@data <- OpenMx::mxData(observed=data,type="raw")
 	}
-	capture.output(fit <- OpenMx::mxRun(object, ...))
+	capture.output(fit <- OpenMx::mxRun(object, silent = TRUE, ...))
 	return(fit)
 }
 
@@ -270,8 +266,7 @@ vectorizeMx <- function(object) {
 }
 
 easyFitMx <- function(object, mxMixture = FALSE) {
-	library(OpenMx)
-	
+
 	if(length(object@submodels) > 1 & !mxMixture) {
 		dat <- lapply(object@submodels, slot, "data")
 	} else {
@@ -292,10 +287,12 @@ easyFitMx <- function(object, mxMixture = FALSE) {
 
     # main container
     indices <- list()
-		
-	logl.H0 <- object@output$Minus2LogLikelihood * (-1/2)
+	
+	satll <- 0
+	if(!is.null(object@output$SaturatedLikelihood)) satll <- object@output$SaturatedLikelihood
+	logl.H0 <- (-1/2) * (object@output$Minus2LogLikelihood - satll )
+	
 	indices["logl"] <- logl.H0
-	indices["npar"] <- npar
 
 	AIC <-  -2*logl.H0 + 2*npar
 	indices["aic"] <- AIC
@@ -303,10 +300,10 @@ easyFitMx <- function(object, mxMixture = FALSE) {
 	BIC <- -2*logl.H0 + npar*log(N)
 	indices["bic"] <- BIC
 
-	# add sample-size adjusted bic
 	N.star <- (N + 2) / 24
 	BIC2 <- -2*logl.H0 + npar*log(N.star)
 	indices["bic2"] <- BIC2
+
 	out <- unlist(indices)
     return(out)
 }

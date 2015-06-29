@@ -21,6 +21,7 @@ Objects can be created by \code{\link{sim}}.
     \item{\code{converged}:}{The convergence status of each replication: 0 = convergent, 1 = not convergent, 2 = nonconvergent in multiple imputed results, 3 = improper solutions for SE (less than 0 or NA), 4 = improper solution for variance (less than 0), 5 = improper solution for correlation (greater than 1 or less than -1) }
     \item{\code{seed}:}{Seed number. }
 	\item{\code{paramValue}:}{Population model underlying each simulated dataset.}
+	\item{\code{stdParamValue}:}{Standardized parameters of the population model underlying each simulated dataset.}
 	\item{\code{paramOnly}:}{If \code{TRUE}, the result object saves only population characteristics and do not save sample characteristics (e.g., parameter estimates and standard errors.}
 	\item{\code{misspecValue}:}{Misspecified-parameter values that are imposed on the population model in each replication.}
 	\item{\code{popFit}:}{The amount of population misfit. See details at \code{\link{summaryMisspec}}}
@@ -29,6 +30,7 @@ Objects can be created by \code{\link{sim}}.
 	\item{\code{cilower}:}{Lower bounds of confidence interval.}
 	\item{\code{ciupper}:}{Upper bounds of confidence interval.}
 	\item{\code{stdCoef}:}{Standardized coefficients from each replication}
+	\item{\code{stdSe}:}{Standard Errors of Standardized coefficients from each replication}
 	\item{\code{n}:}{The total sample size of the analyzed data.}
 	\item{\code{nobs}:}{The sample size within each group.}
 	\item{\code{pmMCAR}:}{Percent missing completely at random.}

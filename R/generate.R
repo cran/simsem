@@ -32,7 +32,7 @@ generate <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "
 		model$indDist <- indDist
 		model$empirical <- empirical
 		model <- c(model, list(...))
-		data <- do.call("lavaanSimulateData", model) 
+		data <- do.call("simulateData", model) 
 	}
 	return(data)
 }
@@ -43,7 +43,7 @@ generateSimSem <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitTy
     params = FALSE, empirical = FALSE) {
     if (is.null(indLab)) {
         if (model@modelType == "path") {
-            indLab <- unique(model@pt$lhs)
+            indLab <- unique(model@pt$lhs[!(model@pt$op %in% c("==", ":=", ">", "<"))])
         } else {
             indLab <- unique(model@pt$rhs[model@pt$op == "=~"])
         }
@@ -69,7 +69,7 @@ generateSimSem <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitTy
 	covLab <- unique(model@pt$lhs[model@pt$op == "~1" & model@pt$exo == 1])
 	if(!is.null(realData)) {
 		if((ngroups > 1) && !(model@groupLab %in% colnames(realData))) stop(paste0("The ", model@groupLab, " varaible does not in the realData argument"))	
-		if(!is.null(covData) && (length(covLab) > 0)) {
+		if(is.null(covData) && (length(covLab) > 0)) {
 			usedCol <- covLab
 			if(ngroups > 1) usedCol <- c(usedCol, model@groupLab)
 			covData <- realData[,usedCol]
@@ -86,7 +86,7 @@ generateSimSem <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitTy
 		indLab <- setdiff(indLab, covLab)
 	} else {
 		if(!is.null(covData)) {
-			warnings("CONFLICT: The model template does not have any covariates but the covaraite data are specified. The covaraite data are ignored.")
+			warnings("CONFLICT: The model template does not have any covariates but the covariate data are specified. The covariate data are ignored.")
 			covData <- NULL
 		}
 	}
@@ -298,7 +298,7 @@ semMACS <- function(param) {
 		return(list(implied.mean, implied.covariance))
 }
 
-# The script below is modified from lavaan. 
+# The script below is modified from lavaan. Not being used anymore.
 
 lavaanSimulateData <- function(
                          # user-specified model
