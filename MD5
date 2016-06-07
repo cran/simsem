@@ -1,4 +1,4 @@
-77c1b4deaf215bd6c4ca93bd6f1cf591 *DESCRIPTION
+8fa821c73f2369f2f3607e3af12cce52 *DESCRIPTION
 0903343c924fc9da95f173261689529a *NAMESPACE
 38424984bfcf6c18dec6b7cfe5a12f82 *R/AllClass.R
 249309f08b76abdb5692ddd3e2b24d91 *R/AllGenerics.R
@@ -14,7 +14,7 @@ bd528ca8afad98e9d92c5ba2be01a1e5 *R/cov2corMod.R
 d2b77a122a72c89771569f654a587474 *R/exportData.R
 391fd7ede3a97eabab3a522721daf5d8 *R/find.R
 1d0060fa9c8bfec0546a6b6fc51d4626 *R/findPowerCoverage.R
-cecbf5f63d41fe82dbc9a24e1b9f67ab *R/generate.R
+432d8cf066b9ec7c164dc0c5f2479fe9 *R/generate.R
 913d28b55700e7c4822293d4d112032e *R/getCIWidth.R
 8f5deb8b3503063b503156c201ef46ef *R/getCutoff.R
 9c2c692c0e0d86ecf71ba5bf53692284 *R/getCutoffNested.R
@@ -44,11 +44,11 @@ b774ede6f1e71e576d5ba0e9fae54e32 *R/plotMisfit.R
 e4770c3f6c6647c33ebab3246db184c2 *R/plotPowerFitNested.R
 90d14c9a3bc1b1c9a1ab6d0cb09662fd *R/plotPowerFitNonNested.R
 31d7447206f77f50325390e08e8f5db2 *R/show-methods.R
-8ebd72bd4edbe5fb57ca044f2be77255 *R/sim.R
+09e9f8bf396396c7c41bcc12fb30dfbe *R/sim.R
 2c6d521c4482aa714f7297c58067d017 *R/summary-methods.R
 7cb0023b78b6d0b7706c21cadd645e6a *R/summaryShort-methods.R
-9f3e3a6ab91b51dbdde8a0fdb38fe3c6 *R/summarySimResult.R
-8468187c759817dc1f34996a4c04aaab *R/validate.R
+37b2c2c064c18ba1f37bab1956d2f19e *R/summarySimResult.R
+7476809b7e540c333e16b4a23b14381b *R/validate.R
 2a3001ddd85f7af0800cc97e6b612399 *R/zzz.R
 455a27f65f0697ca873d1cae0fc27f1d *inst/tests/test_adjust-methods.R
 213dc10b909e3e4c489ce66e0928b8cc *inst/tests/test_analyze.R
@@ -125,8 +125,8 @@ fb2239d9c8e28f6b036a5a5427f9fbe3 *man/plotPower.Rd
 78ebb82d400b77c23e8e5efbe3a0feaa *man/popDiscrepancy.Rd
 459783261501a8fd9e0111feb330089b *man/popMisfitMACS.Rd
 837d197cf966cabf935b7b3e0e438a57 *man/rawDraw.Rd
-d4fbc6cba2b017bfa530860416e13245 *man/setPopulation.Rd
-aef313f6f40a8393685791a9a52af0a6 *man/sim.Rd
+bb976d8187075608fef2135f74b21621 *man/setPopulation.Rd
+b71340a81f233e65ab44fe68dff9cf94 *man/sim.Rd
 1015b5a29a6baccbc94460f27fa19c04 *man/summaryConverge.Rd
 13d375e7fb8622ff02fde9662b40224c *man/summaryFit.Rd
 a24c47d186513476083bfc3181c6ef5f *man/summaryMisspec.Rd

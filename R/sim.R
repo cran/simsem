@@ -749,15 +749,15 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
 		
 		if(!is.null(indDist)) {
 			generate$return.fit <- TRUE
-			data <- do.call("simulateData", generate) # Change to simulateData when the bug is fixed
-			implied <- fitted(attr(data, "fit"))
+			data <- do.call(lavaan::simulateData, generate) # Change to simulateData when the bug is fixed
+			implied <- lavaan::fitted(attr(data, "fit"))
 			if(length(n) == 1) implied <- list(implied)
 			datinddist <- NULL
 			for(i in seq_along(n)) datinddist <- rbind(datinddist, dataGen(indDist, n[i], implied[[i]]$mean, implied[[i]]$cov))
 			datinddist <- as.data.frame(datinddist)
 			datinddist$group <- rep(1:length(n), times=n)
 		} else {
-			data <- do.call("simulateData", generate) # Change to simulateData when the bug is fixed
+			data <- do.call(lavaan::simulateData, generate) # Change to simulateData when the bug is fixed
 		}
 	}
 
@@ -815,7 +815,6 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
 				covDataGroup <- list(covData)
 			}
 		}
-
 		for (i in seq_along(paramSet)) {
 			popParam <- c(popParam, parsePopulation(generatedgen[[i]], paramSet[[i]], group = i))
 			stdPopParam <- c(stdPopParam, parsePopulation(generatedgen[[i]], paramSet[[i]], group = i, std = TRUE, covData = covDataGroup[[i]]))
@@ -1040,7 +1039,7 @@ runRep <- function(simConds, model, generate = NULL, miss = NULL, datafun = NULL
 				ciupper <- result$ci.upper[index]
 				FMI1 <- result$fmi[index]
 				changept <- changeDupLab(outpt)
-				lab <- lavaan::lav_partable_labels(lapply(changept, "[", changept$free > 0))
+				lab <- lavaan::lav_partable_labels(lapply(changept, "[", changept$free > 0 | (outpt$user == 1 & outpt$start !=0)))
 				if(any(extraParamIndex)) {
 					if(!is.lavaancall(model)) {
 						lab <- c(lab, renameExtraParam(model@pt$lhs[extraParamIndex], model@pt$op[extraParamIndex], model@pt$rhs[extraParamIndex], refpt = outpt))
@@ -1541,7 +1540,9 @@ parsePopulation <- function(paramSet, draws, group = 1, std = FALSE, covData = N
 }
 
 is.partable <- function(object) {
-	is.list(object) && all(names(object) %in% c("id", "lhs", "op", "rhs", "user", "group", "free", "ustart", "exo", "label", "plabel", "start", "eq.id", "unco")) # leave eq.id and unco for reverse comptability.
+	is.list(object) && all(names(object) %in% c("id", "lhs", "op", "rhs", "user", "group", "free", "ustart", "exo", "label", "plabel", "start", "est", "se", "eq.id", "unco"))
+  # leave eq.id and unco for reverse comptability.
+  ## 14 April 2016:  Terry added new names "est" and "se"
 }
 
 is.lavaancall <- function(object) {
