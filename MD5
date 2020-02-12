@@ -1,4 +1,4 @@
-2c87c2056b30109b56e94de98d224779 *DESCRIPTION
+ac181c587f9a0869cda2ce679d04e679 *DESCRIPTION
 6df68920bc92d787075ac666b698f4a4 *NAMESPACE
 16596c748fe74957404e51315e06a923 *R/AllClass.R
 249309f08b76abdb5692ddd3e2b24d91 *R/AllGenerics.R
@@ -9,12 +9,12 @@ d3b6e4f8ebd3b51c6846769c770bb565 *R/anova-methods.R
 8f26f6f548fcbc95eb3c43179f05dc9e *R/clean.R
 6c4af1866b3eb05fbc9996895fa4b06a *R/combineSim.R
 bd528ca8afad98e9d92c5ba2be01a1e5 *R/cov2corMod.R
-e5f1ee313adf48c3ab6f43a33406aa38 *R/createData.R
-d577babd1a0cb15739954ad10266b46a *R/drawParam.R
+d6c79c50bf372c6158c699ad97a60a88 *R/createData.R
+61414a305b31d2af3a93deb996020793 *R/drawParam.R
 59ad2df4fd1fcc4188a186f2b12059b3 *R/exportData.R
 88e94bbc6043cadfb54c1426ebf04d41 *R/find.R
 cc92edf2f5b73fe51eb8a9e2e7a1080e *R/findPowerCoverage.R
-63a099b41a575fe92a94807d261b9d28 *R/generate.R
+decb914b3cc5509d31854882ba63661d *R/generate.R
 bdf40e2cef048ddda159608eec7b3c1d *R/getCIWidth.R
 6179daa1b00d259430ca8b9d41a648f6 *R/getCutoff.R
 fddcf861b46d631565cde247fb7839c5 *R/getCutoffNested.R
@@ -24,10 +24,10 @@ fddcf861b46d631565cde247fb7839c5 *R/getCutoffNested.R
 c5ddd5d27efe05db765792ca6eef4e05 *R/getPowerFit.R
 2e72187bc7492b8afc0e3130a0bd2bfa *R/getPowerFitNested.R
 13b2305b28ec1124f6aff87afa1dcc41 *R/getPowerFitNonNested.R
-1eb3861fddb00af64a8c977cb4b1f834 *R/imposeMissing.R
+a21fd98567a6597f976a31fbac0c81b3 *R/imposeMissing.R
 6752360b9017d4ea5dec13704881a712 *R/likRatioFit.R
 ae5af89bed5cd568dcf6e375e082bf7f *R/miss.R
-c305e6a225289c851426e7de373ac583 *R/model.R
+e19eb2cb332591eceeddba12ce194cf0 *R/model.R
 97844cbce079912bb2165075c80c2175 *R/mvrnorm.R
 ef1d9d80b48e86c4e10307d2fba4fa87 *R/openMx.R
 ad7c3f08eedc2227ba61782054510b73 *R/pValue.R
@@ -44,7 +44,7 @@ b774ede6f1e71e576d5ba0e9fae54e32 *R/plotMisfit.R
 df81aa06041066e70bd96741b7b4418a *R/plotPowerFitNested.R
 ffb65ff5f536b5ffebf2ffe982feb354 *R/plotPowerFitNonNested.R
 31d7447206f77f50325390e08e8f5db2 *R/show-methods.R
-8cdc6f2b388e0d56c565b5f55289dcee *R/sim.R
+ddb3c505b5aacfddf6c1895d5c12f045 *R/sim.R
 cb1cc9e40193234a079f07da47f9aa0d *R/summary-methods.R
 7cb0023b78b6d0b7706c21cadd645e6a *R/summaryShort-methods.R
 a9c6d6eab6c9c763af1b074f339c0bba *R/summarySimResult.R
@@ -66,7 +66,7 @@ ef1807d6a288719e692e5c9a3b75c490 *inst/tests/test_missing.R
 fca72d14969488cf7e319c7ec4358060 *man/analyze.Rd
 f84f0527ea106ae9d36b495d14ea8e02 *man/anova.Rd
 30488dd254f8ff290fdc2bb0d819b939 *man/bind.Rd
-587ebb1056b56bf8b0f01da8b9f0bd28 *man/bindDist.Rd
+ab2e834b176f0a1694646c8f3f566202 *man/bindDist.Rd
 40ef36ea817c149317580b79bc61d2f1 *man/coef.Rd
 888ed0c915ef1eabf96196cb115a9432 *man/combineSim.Rd
 3a9beb9debd120b9bbd4c63cf4bf04e6 *man/continuousCoverage.Rd
@@ -126,7 +126,7 @@ e5a282cb5cb2fbe80e12d41c5f3fbfc9 *man/plotPowerFitNested.Rd
 459783261501a8fd9e0111feb330089b *man/popMisfitMACS.Rd
 c6b3bd59aac6ebfd08127ffa8a79214d *man/rawDraw.Rd
 bb976d8187075608fef2135f74b21621 *man/setPopulation.Rd
-d19fa66f1eebf66c8310df25aa811492 *man/sim.Rd
+94b68f8324d04b03d5080e3941ada8de *man/sim.Rd
 f45d5b34598b485351dc0b007290eaa0 *man/summaryConverge.Rd
 cd9171d9d8445dd6164f61fccff7ea76 *man/summaryFit.Rd
 7031d7248c46a490a0871e42ef475574 *man/summaryMisspec.Rd

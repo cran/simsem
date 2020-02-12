@@ -1,18 +1,13 @@
 Package: simsem
 Type: Package
 Title: SIMulated Structural Equation Modeling
-Version: 0.5-14
-Date: 2018-06-03
-Authors@R: c(person(given = c("Terrence","D."), family = "Jorgensen", role = c("aut", "cre"), email="TJorgensen314@gmail.com"),
-        person(given = "Sunthud", family = "Pornprasertmanit", role = "aut", email = "psunthud@gmail.com"), 
-		person(given = "Patrick", family = "Miller", role = "aut", email="pmille13@nd.edu"), 
-		person(given = "Alexander", family = "Schoemann", role = "aut", email="schoemanna@ecu.edu"), 
-		person(given = "Corbin", family = "Quick", role = "ctb", email="corbinq@umich.edu"))
-Author: Terrence D. Jorgensen [aut, cre],
-  Sunthud Pornprasertmanit [aut],
-  Patrick Miller [aut],
-  Alexander Schoemann [aut],
-  Corbin Quick [ctb]
+Version: 0.5-15
+Date: 2020-02-12
+Authors@R: c(person(given = "Sunthud", family = "Pornprasertmanit", role = "aut", email = "psunthud@gmail.com"), 
+		         person(given = "Patrick", family = "Miller", role = "aut", email="pmille13@nd.edu"), 
+		         person(given = "Alexander", family = "Schoemann", role = "aut", email="schoemanna@ecu.edu"), 
+		         person(given = c("Terrence","D."), family = "Jorgensen", role = c("aut", "cre"), email="TJorgensen314@gmail.com", comment = c(ORCID = "0000-0001-5111-6773")),
+             person(given = "Corbin", family = "Quick", role = "ctb", email="corbinq@umich.edu"))
 Maintainer: Terrence D. Jorgensen <TJorgensen314@gmail.com>
 Depends: R(>= 3.3), methods, lavaan(>= 0.6.1), utils, stats, graphics
 Suggests: parallel, Amelia, quantreg, splines, foreign, KernSmooth,
@@ -22,6 +17,12 @@ License: GPL (>= 2)
 LazyLoad: yes
 URL: http://www.simsem.org
 NeedsCompilation: no
-Packaged: 2018-06-02 23:54:30 UTC; tjorgen2
+Packaged: 2020-02-12 16:16:22 UTC; terrence
+Author: Sunthud Pornprasertmanit [aut],
+  Patrick Miller [aut],
+  Alexander Schoemann [aut],
+  Terrence D. Jorgensen [aut, cre]
+    (<https://orcid.org/0000-0001-5111-6773>),
+  Corbin Quick [ctb]
 Repository: CRAN
-Date/Publication: 2018-06-03 15:49:05 UTC
+Date/Publication: 2020-02-12 16:40:02 UTC

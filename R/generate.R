@@ -35,7 +35,6 @@ generate <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitType = "
 		}
 		model$empirical <- empirical
 		model <- c(model, list(...))
-		browser()
 		data <- do.call(lavaan::simulateData, model)
 	}
 	return(data)
@@ -381,7 +380,10 @@ lavaanValeMaurelli1983 <- function(n=100L, COR, skewness, kurtosis) {
 	}
     # generate Z ## FIXME: replace by rmvnorm once we use that package
     X <- Z <- mvrnorm(n=n, mu=rep(0,nvar), Sigma=ICOR)
-
+  if (n == 1) {
+    X <- rbind(X, deparse.level = 0)
+    Z <- rbind(Z, deparse.level = 0)
+  }
     # transform Z using Fleishman constants
     for(i in 1:nvar) {
         X[,i] <- FTable[i,1L] + FTable[i,2L]*Z[,i] + FTable[i,3L]*Z[,i]^2 +

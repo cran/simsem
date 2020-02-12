@@ -1,5 +1,5 @@
 ### Sunthud Pornprasertmanit & Terrence D. Jorgensen (anyone else?)
-### Last updated: 3 June 2018
+### Last updated: 12 February 2020
 ### functions for specifying an analysis model that utilizes lavaan
 
 
@@ -571,7 +571,6 @@ parseFree <- function(simDat, group, pt, op, lhs = NULL, rhs = NULL,
     }
 
     id <- startId:(startId + (numElem) - 1)
-    op <- rep(op, length(id))
     user <- rep(0, numElem)
     group <- rep(group, numElem)
     free <- freeIdx(freeDat, start = startFree, symm = (op == "~~"))
@@ -585,9 +584,12 @@ parseFree <- function(simDat, group, pt, op, lhs = NULL, rhs = NULL,
     label <- names(eq.id)
     eq.id <- as.vector(eq.id)
     unco <- uncoIdx(freeDat, start = startUnco, symm = (op == "~~"))
-    return(list(id = id, lhs = as.character(lhs), op = as.character(op), rhs = as.character(rhs),
-        user = user, group = as.integer(group), free = as.integer(free), ustart = ustart,
-        exo = exo, eq.id = eq.id, label = as.character(label), unco = as.integer(unco)))
+    return(list(id = id, lhs = as.character(lhs),
+                op = as.character(rep(op, length(id))),
+                rhs = as.character(rhs),
+                user = user, group = as.integer(group), free = as.integer(free),
+                ustart = ustart, exo = exo, eq.id = eq.id,
+                label = as.character(label), unco = as.integer(unco)))
 }
 
 ## Calculates the indices of free parameters by lavaan rules.  1. Each unique
@@ -1188,7 +1190,8 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
 			}
             x
         })
-        freeUnstd <- labelFree(lavInspect(object, "free"), object@Model@isSymmetric)
+        freeUnstd <- labelFree(lavInspect(object, "free", list.by.group = FALSE),
+                               object@Model@isSymmetric)
 		if(!is.null(covLab)) freeUnstd <- reshuffleParamGroup(freeUnstd, covLab, indLab, facLab, ngroups)
         if (!is.null(PS))
             stop("Misspecification is not allowed in PS if 'std' is TRUE.")
@@ -1347,9 +1350,10 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
             est[[gg]] <- GLIST[ (1:nMats) + (gg - 1L)*nMats ]
           }
         }
-      } else est <- lavInspect(object, "est")
+      } else est <- lavInspect(object, "est", list.by.group = FALSE)
 		if(!is.null(covLab)) est <- reshuffleParamGroup(est, covLab, indLab, facLab, ngroups)
-        free <- labelFree(lavInspect(object, "free"), object@Model@isSymmetric)
+        free <- labelFree(lavInspect(object, "free", list.by.group = FALSE),
+                          object@Model@isSymmetric)
 		if(!is.null(covLab)) free <- reshuffleParamGroup(free, covLab, indLab, facLab, ngroups)
         if (modelType == "path") {
             set1 <- lapply(free[names(free) == "beta"], function(x) findRecursiveSet(x)[[1]])
@@ -1732,8 +1736,7 @@ attachConPt <- function(pt, con) {
 }
 
 patMerge <- function (pt1 = NULL, pt2 = NULL, remove.duplicated = FALSE,
-    fromLast = FALSE, warn = TRUE)
-{
+                      fromLast = FALSE, warn = TRUE) {
     pt1 <- as.data.frame(pt1, stringsAsFactors = FALSE)
     pt2 <- as.data.frame(pt2, stringsAsFactors = FALSE)
     stopifnot(!is.null(pt1$lhs), !is.null(pt1$op), !is.null(pt1$rhs),
