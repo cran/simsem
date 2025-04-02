@@ -12,7 +12,7 @@
 
 draw <- function(model, maxDraw = 50, misfitBounds = NULL, averageNumMisspec = FALSE,
     optMisfit = NULL, optDraws = 50, misfitType = "f0", createOrder = c(1, 2, 3), covData = NULL) {
-    stopifnot(class(model) == "SimSem")
+    stopifnot(inherits(model, "SimSem"))
 	covLab <- unique(model@pt$lhs[model@pt$op == "~1" & model@pt$exo == 1])
 
 	if(length(covLab) > 0) {
@@ -292,7 +292,7 @@ drawParam <- function(paramSet, maxDraw = 50, numFree = 1, misfitBounds = NULL, 
 ## tri are set equal to the parameters on the lower tri.
 rawDraw <- function(simDat, constraint = TRUE, misSpec = TRUE, parMisOnly = FALSE,
     misOnly = FALSE) {
-    if (class(simDat) == "SimMatrix" || class(simDat) == "SimVector") {
+    if (any(inherits(simDat, c("SimMatrix","SimVector"), which = TRUE))) {
         free <- as.vector(simDat@free)
         popParam <- as.vector(simDat@popParam)
         misspec <- as.vector(simDat@misspec)
@@ -355,7 +355,7 @@ rawDraw <- function(simDat, constraint = TRUE, misSpec = TRUE, parMisOnly = FALS
                 }
             }
         }
-        if (class(simDat) == "SimMatrix") {
+        if (inherits(simDat, "SimMatrix")) {
             param <- matrix(param, nrow = nrow(simDat@free), ncol = ncol(simDat@free))
             paramMis <- matrix(paramMis, nrow = nrow(simDat@free), ncol = ncol(simDat@free))
             missRaw <- matrix(missRaw, nrow = nrow(simDat@free), ncol = ncol(simDat@free))

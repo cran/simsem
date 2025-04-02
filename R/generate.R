@@ -57,13 +57,13 @@ generateSimSem <- function(model, n, maxDraw = 50, misfitBounds = NULL, misfitTy
     ngroups <- max(model@pt$group)
 
     # Wrap distributions in lists for mg
-    if (!class(indDist) == "list") {
+    if (!inherits(indDist, "list")) {
         indDist <- rep(list(indDist), ngroups)
     }
-    if (!class(facDist) == "list") {
+    if (!inherits(facDist, "list")) {
         facDist <- rep(list(facDist), ngroups)
     }
-    if (!class(errorDist) == "list") {
+    if (!inherits(errorDist, "list")) {
         errorDist <- rep(list(errorDist), ngroups)
     }
 

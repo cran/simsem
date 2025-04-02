@@ -14,14 +14,14 @@ sim(nRep, model, n, generate = NULL, ..., rawData = NULL, miss = NULL, datafun=N
 	covData = NULL, maxDraw = 50, misfitType = "f0", misfitBounds = NULL,
 	averageNumMisspec = FALSE, optMisfit=NULL, optDraws = 50,
 	createOrder = c(1, 2, 3), aux = NULL, group = NULL, mxFit = FALSE,
-	mxMixture = FALSE, citype = NULL, cilevel = 0.95, seed = 123321, silent = FALSE,
-	multicore = options('simsem.multicore')[[1]], cluster = FALSE,
-	numProc = NULL, paramOnly = FALSE, dataOnly=FALSE, smartStart=FALSE,
+	mxMixture = FALSE, citype = NULL, cilevel = 0.95, seed = 123321,
+	silent = FALSE, multicore = options('simsem.multicore')[[1]], numProc = NULL,
+	paramOnly = FALSE, dataOnly=FALSE, smartStart=FALSE,
 	previousSim = NULL, completeRep = FALSE, stopOnError = FALSE)
 }
 \arguments{
   \item{nRep}{
-	Number of replications. If any of the \code{n}, \code{pmMCAR}, or \code{pmMAR} arguments are specified as lists, the number of replications will default to the length of the list(s), and \code{nRep} need not be specified (can be set \code{NULL}).
+	Number of replications. If any of the \code{n}, \code{pmMCAR}, or \code{pmMAR} arguments are specified as lists, the number of replications will default to the length of the list(s), and \code{nRep} need not be specified (can be set \code{NULL}).  When \code{completeRep > 0} (see description below), then \code{nRep} is the target number of replications for which no convergence issues are detected.
 }
   \item{model}{
 	There are three options for this argument: 1. \code{\linkS4class{SimSem}} object created by \code{\link{model}}, 2. \code{lavaan} script, \code{lavaan} parameter table, fitted \code{lavaan} object matching the analysis model, or a list that contains all argument that users use to run \code{lavaan} (including \code{cfa}, \code{sem}, \code{lavaan}), 3. \code{MxModel} object from the \code{OpenMx} package, or 4. a function that takes a data set and return a list of \code{coef}, \code{se}, and \code{converged} (see details below). For the \code{\linkS4class{SimSem}} object, if the \code{generate} argument is not specified, then the object in the \code{model} argument will be used for both data generation and analysis. If \code{generate} is specified, then the \code{model} argument will be used for data analysis only.
@@ -47,17 +47,16 @@ sim(nRep, model, n, generate = NULL, ..., rawData = NULL, miss = NULL, datafun=N
 	The character of the function name used in running lavaan model (\code{"cfa"}, \code{"sem"}, \code{"growth"}, \code{"lavaan"}). This argument is required only when lavaan script or a list of arguments is specified in the \code{model} argument.
 }
   \item{outfun}{
-	A function to be applied to the \code{\linkS4class{lavaan}} output at each replication. Output from this function in each replication will be saved in the simulation output (\code{\linkS4class{SimResult}}), and can be obtained using the \code{\link{getExtraOutput}} function.
+	A function to be applied to the \code{lavaan-class} output at each replication. Output from this function in each replication will be saved in the simulation output (\code{\linkS4class{SimResult}}), and can be obtained using the \code{\link{getExtraOutput}} function.
 }
   \item{outfundata}{
-	A function to be applied to the \code{\linkS4class{lavaan}} output and the generated data at each replication. Users can get the characteristics of the generated data and also compare the characteristics with the generated output. The output from this function in each replication will be saved in the simulation output (\code{\linkS4class{SimResult}}), and can be obtained using the \code{\link{getExtraOutput}} function.
+	A function to be applied to the \code{lavaan-class} output and the generated data at each replication. Users can get the characteristics of the generated data and also compare the characteristics with the generated output. The output from this function in each replication will be saved in the simulation output (\code{\linkS4class{SimResult}}), and can be obtained using the \code{\link{getExtraOutput}} function.
 }
   \item{pmMCAR}{
-	The percentage of data completely missing at random (0 <= pmMCAR < 1). Either a single value or a vector of values in order to vary pmMCAR across replications (with length equal to nRep or a divisor of nRep). The \code{objMissing} argument is only required when specifying complex missing value data generation, or when using multiple imputation.
+	The percentage of data completely missing at random (0 <= pmMCAR < 1). Either a single value or a vector of values in order to vary pmMCAR across replications (with length equal to nRep or a divisor of nRep). The \code{miss=} argument is only required when specifying more complex missing value data generation.
 }
   \item{pmMAR}{
-	The percentage of data missing at random (0 <= pmCAR < 1). Either a single value or a vector of values in order to vary pmCAR across replications (with length equal to nRep or a divisor of nRep). The \code{objMissing} argument is only required when specifying complex missing value data generation, or when using multiple imputation.
-
+	The percentage of data missing at random (0 <= pmCAR < 1). Either a single value or a vector of values in order to vary pmCAR across replications (with length equal to nRep or a divisor of nRep). The \code{miss=} argument is only required when specifying more complex missing value data generation.
 }
   \item{facDist}{
 	Factor distributions. Either a list of \code{\linkS4class{SimDataDist}} objects or a single \code{\linkS4class{SimDataDist}} object to give all factors the same distribution. Use when \code{sequential} is \code{TRUE}.
@@ -123,16 +122,13 @@ sim(nRep, model, n, generate = NULL, ..., rawData = NULL, miss = NULL, datafun=N
     Confidence level. For the current version, this argument will be forwarded to the \code{"level"} argument in the  \code{\link[lavaan]{parameterEstimates}} function from the \code{lavaan} package. This argument is not active when the \code{OpenMx} package is used.
 }
   \item{seed}{
-	Random number seed. Note that the seed number is always fixed in the \code{simsem} so that users can always replicate the same simulatin or can be confidence that the same data set are generated. Reproducibility across multiple cores or clusters is ensured using R'Lecuyer package.
+	Random number seed. Note that the seed number is always fixed in the \code{simsem} so that users can always replicate the same simulation or can be confidence that the same data set are generated. Reproducibility across multiple cores or clusters is ensured using R'Lecuyer package.
 }
   \item{silent}{
 	If \code{TRUE}, suppress warnings.
 }
   \item{multicore}{
 	Users may put \code{TRUE} or \code{FALSE}. If \code{TRUE}, multiple processors within a computer will be utilized. The default value is \code{FALSE}. Users may permanently change the default value by assigning the following line: \code{options('simsem.multicore' = TRUE)}
-}
-  \item{cluster}{
-	Not applicable now. Used to specify nodes in hpc in order to be parallelizable.
 }
   \item{numProc}{
 	Number of processors for using multiple processors. If it is \code{NULL}, the package will find the maximum number of processors.
@@ -150,7 +146,7 @@ sim(nRep, model, n, generate = NULL, ..., rawData = NULL, miss = NULL, datafun=N
 	A result object that users wish to add the results of the current simulation in
 }
   \item{completeRep}{
-	If \code{TRUE}, the function will run until the number of convergent replication equal to the specified \code{nRep}.
+  Nonnegative \code{integer} indicating how many samples are allowed to be drawn in order to obtain at least \code{nRep} results without convergence issues (including Heywood cases or no standard errors). Ignored unless \code{completeRep > nRep}. Can also be \code{logical}, where \code{FALSE} (or \code{0}, the default) indicates only \code{nRep} samples may be drawn.  If \code{TRUE}, up to 10\% additional samples may be drawn by default (i.e., \code{completeRep = as.integer(nRep*1.1)}).
 }
   \item{stopOnError}{
 	If \code{TRUE}, stop running the simulation when the error occurs during the data analysis on any replications.

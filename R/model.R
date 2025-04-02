@@ -1,5 +1,5 @@
 ### Sunthud Pornprasertmanit & Terrence D. Jorgensen (anyone else?)
-### Last updated: 11 January 2021
+### Last updated: 1 April 2025
 ### functions for specifying an analysis model that utilizes lavaan
 
 
@@ -21,7 +21,7 @@ model <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = 
         mgidx <- which(sapply(paramSet, is.list))
         mg <- names(mgidx)
         sgidx <- which(sapply(paramSet, FUN = function(x) {
-            class(x) == "SimMatrix" || class(x) == "SimVector"
+            any(inherits(x, c("SimMatrix","SimVector"), which = TRUE))
         }))
         sg <- names(sgidx)
         n <- max(sapply(paramSet, length))
@@ -43,7 +43,7 @@ model <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL, BE = 
                 # Repeat single matrices
                 for (i in seq_along(sgidx)) {
                   temp <- NULL
-                  if (class(paramSet[sgidx][[i]]) == "SimMatrix") {
+                  if (inherits(paramSet[sgidx][[i]], "SimMatrix")) {
                     temp <- paramSet[sgidx][[i]]
                     paramSet[sgidx][[i]] <- replicate(n, new("SimMatrix", free = temp@free,
                       popParam = temp@popParam, misspec = temp@misspec, symmetric = temp@symmetric))
@@ -560,7 +560,7 @@ parseFree <- function(simDat, group, pt, op, lhs = NULL, rhs = NULL,
     }
     numElem <- NULL
 
-    if (class(simDat) == "SimVector") {
+    if (inherits(simDat, "SimVector")) {
         numElem <- length(freeDat)
     } else if (simDat@symmetric && op == "~~") {
         # Just get lower tri
@@ -1131,12 +1131,13 @@ estmodel.sem <- function(LY = NULL, PS = NULL, RPS = NULL, TE = NULL, RTE = NULL
         indLab = indLab, facLab = facLab, covLab = covLab, groupLab = groupLab, ngroups = ngroups, con = con)
 }
 
+#FIXME: this does not seem to be used anywhere
 model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, TE = NULL,
     RTE = NULL, BE = NULL, VTE = NULL, VY = NULL, VPS = NULL, VE = NULL, TY = NULL,
     AL = NULL, MY = NULL, ME = NULL, KA = NULL, GA = NULL) {
     ngroups <- lavInspect(object, "ngroups")
     if (is(object, "lavaan.mi")) {
-      name <- unique(names(object@GLIST))
+      name <- unique(names(object@Model@GLIST))
     } else if (ngroups > 1L) {
       name <- names(lavInspect(object, "est")[[1]])
     } else {
@@ -1337,7 +1338,12 @@ model.lavaan <- function(object, std = FALSE, LY = NULL, PS = NULL, RPS = NULL, 
 
     } else {
       if (is(object, "lavaan.mi")) {
-        est <- object@GLIST
+        ## pooled estimates for standardizedSolution()
+        COEF <- getMethod("coef", "lavaan.mi")(object)
+        ## update @Model@GLIST
+        object@Model <- lavaan::lav_model_set_parameters(object@Model, x = COEF)
+        ## extract GLIST
+        est <- object@Model@GLIST
         for (mm in 1:length(est)) dimnames(est[[mm]]) <- object@Model@dimNames[[mm]]
         if (ngroups > 1L) {
           GLIST <- est
@@ -1555,9 +1561,16 @@ labelFree <- function(free, symmetric) {
 standardize <- function(object) {
 
   if (is(object, "lavaan.mi")) {
-    GLIST <- object@GLIST
-    est.std <- getMethod("summary", "lavaan.mi")(object, standardized = "std.all",
-                                                 add.attributes = FALSE)$std.all
+    ## pooled estimates for standardizedSolution()
+    COEF <- getMethod("coef", "lavaan.mi")(object)
+    ## update @Model@GLIST
+    object@Model <- lavaan::lav_model_set_parameters(object@Model, x = COEF)
+    ## extract GLIST
+    GLIST <- object@Model@GLIST
+    #TODO: Delete code for OLDlavaan.mi
+    # est.std <- getMethod("summary", "lavaan.mi")(object, standardized = "std.all",
+    #                                              add.attributes = FALSE)$std.all
+    est.std <- lavaan.mi::standardizedSolution.mi(object)$std.all
   } else {
     GLIST <- object@Model@GLIST
     est.std <- lavaan::standardizedSolution(object)$est.std

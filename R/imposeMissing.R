@@ -69,7 +69,7 @@ imposeMissing <- function(data.mat, cov = 0, pmMCAR = 0, pmMAR = 0, nforms = 0, 
     }
 
     if (!is.null(logical) && !is.null(dim(logical)) && !all(dim(logical) == 1)) {
-        if (!(class(logical) %in% c("matrix", "data.frame")))
+        if (!any(inherits(logical, c("matrix","data.frame"), which = TRUE)))
             stop("The logical argument must be matrix or data frame.")
         usecol <- setdiff(seq_len(ncol(data.mat)), ignoreCols)
         log.all2 <- log.all[, usecol]
@@ -217,7 +217,7 @@ plannedMissing <- function(dims = c(0, 0), nforms = NULL, itemGroups = NULL, two
             print("Number of forms has been set to the number of groups specified")
         }
 
-        if (((!is.null(itemGroups)) && (class(itemGroups) != "list"))) {
+        if (((!is.null(itemGroups)) && (!inherits(itemGroups, "list")))) {
             stop("itemGroups not a list")
         }
 

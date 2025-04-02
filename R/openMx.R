@@ -360,7 +360,7 @@ saturateMxSingleGroup <- function(data, title = "Saturate Model", groupnum = NUL
   if(data@type == "raw") {
     categorical <- rep(FALSE, p)
     for(i in seq_len(p)) {
-      categorical[i] <- "ordered" %in% class(data@observed[,i])
+      categorical[i] <- inherits(data@observed[,i], "ordered")
     }
     startMeans <- apply(data@observed, 2, function(x) mean(as.numeric(x), na.rm=TRUE))
     startVar <- apply(data@observed, 2, var, na.rm=TRUE)
@@ -546,7 +546,7 @@ nullMxSingleGroup <- function(data, title = "Null Model", groupnum = NULL) {
   if(data@type == "raw") {
     categorical <- rep(FALSE, p)
     for(i in seq_len(p)) {
-      categorical[i] <- "ordered" %in% class(data@observed[,i])
+      categorical[i] <- inherits(data@observed[,i], "ordered")
     }
     startMeans <- apply(data@observed, 2, function(x) mean(as.numeric(x), na.rm=TRUE))
     startVar <- apply(data@observed, 2, var, na.rm=TRUE)

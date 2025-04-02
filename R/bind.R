@@ -174,7 +174,7 @@ is.empty <- function(dat) {
 # least one pair is the same.  Assumes that matrix has at least one character
 # label.
 validConstraints <- function(mat) {
-    if (class(mat) == "SimMatrix" || class(mat) == "SimVector") {
+    if (any(inherits(mat, c("SimMatrix","SimVector"), which = TRUE))) {
         mat <- mat@free
     }
 

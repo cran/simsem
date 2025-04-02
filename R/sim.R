@@ -1,5 +1,5 @@
 ### Sunthud Pornprasertmanit & Terrence D. Jorgensen (anyone else?)
-### Last updated: 23 September 2020
+### Last updated: 23 April 2024
 ### Primary engines for simulation.  Everything else is added details.
 
 sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
@@ -12,7 +12,7 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
                 createOrder = c(1, 2, 3), aux = NULL, group = NULL, mxFit = FALSE,
                 mxMixture = FALSE, citype = NULL, cilevel = 0.95, seed = 123321,
                 silent = FALSE, multicore = options('simsem.multicore')[[1]],
-                cluster = FALSE, numProc = NULL, paramOnly = FALSE, dataOnly = FALSE,
+                numProc = NULL, paramOnly = FALSE, dataOnly = FALSE,
                 smartStart = FALSE, previousSim = NULL, completeRep = FALSE,
                 stopOnError = FALSE) {
   mc <- match.call()
@@ -22,7 +22,15 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
   start.time0 <- start.time <- proc.time()[3]
   timing <- list()
 	timing$StartTime <- Sys.time()
-  RNGkind("L'Ecuyer-CMRG")
+	if (RNGkind()[1L] != "L'Ecuyer-CMRG") {
+	  message('The RNGkind() was changed from "', RNGkind()[1L],
+	          '" to RNGkind("L\'Ecuyer-CMRG") in order to enable the multiple ',
+	          'streams in the parallel package.\nTo set a RNG seed using the ',
+	          'previous RNGkind(), you can use\n\tRNGkind("',
+	          paste(RNGkind(), collapse = '","'), '")\n or \n\t',
+	          'set.seed(seed, kind = "', RNGkind()[1L], '")')
+	  RNGkind("L'Ecuyer-CMRG")
+	}
 	if (is.null(previousSim)) {
 		set.seed(seed)
 	} else {
@@ -52,7 +60,7 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
 			lavaanGenerate <- TRUE
 		} else if (is.lavaancall(generate)) {
 			lavaanGenerate <- TRUE
-		} else if (is(generate, "lavaan")) {
+		} else if (inherits(generate, "lavaan")) {
 			temp <- parTable(generate)
 			temp$ustart <- temp$start <- temp$est
 			generate <- list(model = temp)
@@ -108,8 +116,11 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
 		if (!("group" %in% names(model)) & "group" %in% names(mc)) model$group <- group
 
 		## TDJ addition (26 Nov 2019):
-		## added is.null(rawData) on 23 Sep 2020
-		if (is.null(generate) && is.null(rawData)) {
+		##  - added is.null(rawData) on 23 Sep 2020
+		##  - added is.null(popData) on 17 May 2024
+		if (is.null(generate) && is.null(rawData) && is.null(popData)) {
+		  ## No other mechanisms to generate data, so must(?) use analysis model.
+		  ## FIXME: Without parameter values, simulateData() will set all == 1s / 0s
 		  lavaanGenerate <- TRUE
 		  generate <- .om.
 		  ## scroll through options again
@@ -139,14 +150,21 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
 		}
 	}
 
-	## Save arguments for completeRep = TRUE
-	if (is.logical(completeRep)) {
-		if (completeRep) {
-			completeRep <- nRep
-		} else {
-			completeRep <- 0L
-		}
-	}
+	##TDJ updated the completeRep section:
+	## Save arguments for completeRep = TRUE (or an integer)
+	stopifnot(is.logical(completeRep) || is.numeric(completeRep))
+	## for TRUE, add up to 10% more replications
+	if (is.logical(completeRep) && completeRep) completeRep <- nRep*1.1
+	completeRep <- as.integer(completeRep)
+	if (completeRep < 0) completeRep <- 0L
+	## otherwise, make sure it is actually a maximum > nRep
+	if (completeRep > 0 && completeRep <= nRep) {
+	  message('completeRep= should be logical, or an integer > nRep to indicate ',
+	          'a maximum number of replications to try achieving at least ',
+	          'nRep converged samples. completeRep=', completeRep, 'is ignored.')
+	  completeRep <- 0L
+	} # else completeRep > nRep
+
 	nInitial <- n
 	pmMCARInitial <- pmMCAR
 	pmMARInitial <- pmMAR
@@ -365,7 +383,13 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
     if (is.null(numProc)) numProc <- parallel::detectCores() ## FIXME: subtract 1 for master node?
     if (sys == "windows") {
       cl <- parallel::makeCluster(rep("localhost", numProc), type = "SOCK")
-      parallel::clusterExport(cl, lavaanfun) # TODO: need to export any other objects?
+      parallel::clusterExport(cl, varlist = lavaanfun) # from .GlobalEnv
+      parallel::clusterEvalQ(cl, require("semTools"))
+      #FIXME: necessary to export all these objects?
+      args2export <- c("datafun","outfun","outfundata")
+      ## remove NULL objects
+      args2export <- args2export[sapply(args2export, function(x) !is.null(eval(as.name(x))))]
+      parallel::clusterExport(cl, varlist = args2export, envir = environment()) # from this environment
       Result.l <- parallel::clusterApplyLB(cl, simConds, runRep, model = model,
                                            generateO = generate, miss = miss,
                                            datafun = datafun, lavaanfun = lavaanfun,
@@ -494,7 +518,8 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
     if (!is.null(popResult$std)) stdparam <- as.data.frame(t(popResult$std))
   }
 
-  if (lavaanGenerate || (is.null(generate) && lavaanAnalysis && is.null(rawData))) {
+  if (lavaanGenerate ||
+      (lavaanAnalysis && is.null(generate) && is.null(rawData) && is.null(popData))) {
     if (is.null(generate) && lavaanAnalysis) generate <- model
     generate2 <- generate
     generate2$sample.nobs <- simConds[[1]][[2]]
@@ -672,12 +697,15 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
     Result <- combineSim(previousSim, Result)
   }
 
-  ## If completeRep = TRUE, check whether the number of converged results
+  ## TDJ updated completeRep= to be an integer > nRep for max(tries).
+  ## If completeRep > nRep, check the number of converged results.
   if (completeRep > 0 & !is.null(nRepInitial)) {
-    success <- sum(Result@converged == 0)
-    pSuccess <- success / Result@nRep
-    if (success < completeRep) {
-      nRepNew <- ceiling((completeRep - success) / pSuccess)
+    nSuccess <- sum(Result@converged == 0)
+    # if (nSuccess < completeRep) {
+    while (nSuccess < nRepInitial && Result@nRep < completeRep) {
+      pSuccess <- nSuccess / Result@nRep
+      nRepNew <- min(ceiling((nRepInitial - nSuccess) / pSuccess),
+                     completeRep - Result@nRep)
       Result <- sim(nRep = nRepNew, model = model, n = nInitial, generate = generate,
                     rawData = rawData, miss = miss, datafun = datafun,
                     lavaanfun = lavaanfun, outfun = outfun, outfundata = outfundata,
@@ -690,10 +718,12 @@ sim <- function(nRep = NULL, model = NULL, n = NULL, generate = NULL, ...,
                     optDraws = optDraws, createOrder = createOrder, aux = aux,
                     group = group, mxFit = mxFit, mxMixture = mxMixture,
                     citype = citype, cilevel = cilevel, seed = seed,
-                    silent = silent, multicore = multicore, cluster = cluster,
-                    numProc = numProc, paramOnly = paramOnly, dataOnly = dataOnly,
+                    silent = silent, multicore = multicore, numProc = numProc,
+                    paramOnly = paramOnly, dataOnly = dataOnly,
                     smartStart = smartStart, previousSim = Result,
                     completeRep = completeRep, stopOnError = stopOnError, ...)
+      ## update to break while() loop
+      nSuccess <- sum(Result@converged == 0)
     }
   }
 
@@ -1006,7 +1036,7 @@ runRep <- function(simConds, model, generateO = NULL, miss = NULL, datafun = NUL
         improperSE <- any(unlist(seTemp) < 0) | any(is.na(unlist(seTemp))) | all(unlist(seTemp) == 0)
         if (improperSE) converged <- 3L
       }
-    } else  if (is(out, "lavaan.mi")) {
+    } else if (is(out, "lavaan.mi")) {
       if (mean(sapply(out@convergence, "[[", "converged")) < miss@convergentCutoff) {
         converged <- 2L
       } else if (mean(sapply(out@convergence, "[[", "SE"), na.rm = TRUE) < miss@convergentCutoff) {
@@ -1095,11 +1125,14 @@ runRep <- function(simConds, model, generateO = NULL, miss = NULL, datafun = NUL
       ## lavaan.mi results come from different source than lavaan
       if (is(out, "lavaan.mi")) {
         fit <- suppressMessages(getMethod("fitMeasures", "lavaan.mi")(out))
-        result <- getMethod("summary", "lavaan.mi")(out, standardized = "std.all",
-                                                    level = cilevel, fmi = TRUE,
-                                                    add.attributes = FALSE)
+        result <- lavaan.mi::parameterEstimates.mi(out, standardized = "std.all",
+                                                   level = cilevel, fmi = TRUE,
+                                                   remove.eq = FALSE, remove.system.eq = FALSE,
+                                                   remove.ineq = FALSE, remove.def = FALSE)
         outpt$se <- result$se
-        stdse <- NULL
+        errstdse <- try(resultstd <- lavaan.mi::standardizedSolution.mi(out, remove.eq = FALSE,
+                                                                        remove.ineq = FALSE, remove.def = FALSE))
+        if (!is(errstdse, "try-error")) stdse <- resultstd$se[index]
         if (converged %in% c(0L, 3:5)) {
           FMI1 <- result$fmi[index] # result$fmi1[index]
           FMI2 <- NULL              # result$fmi2[index]
